@@ -35,12 +35,11 @@ const (
 
 // Bullet symbols
 const (
-	bulletInfo = "•"
-	// bulletInfo    = "●"
+	bulletInfo    = "•"
 	bulletSuccess = "✓"
 	bulletError   = "✗"
 	bulletWarn    = "⚠"
-	bulletDebug   = "•"
+	bulletDebug   = "○"
 )
 
 // colorize wraps text in ANSI color codes

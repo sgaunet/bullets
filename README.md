@@ -5,11 +5,12 @@ A colorful terminal logger for Go with bullet-style output, inspired by [gorelea
 ## Features
 
 - 🎨 Colorful terminal output with ANSI colors
-- 🔘 Bullet-style logging with different symbols for different levels
+- 🔘 Configurable bullet symbols (default circles, optional special symbols, custom icons)
 - 📊 Support for log levels (Debug, Info, Warn, Error, Fatal)
 - 📝 Structured logging with fields
 - ⏱️  Timing information for long-running operations
 - 🔄 Indentation/padding support for nested operations
+- ⏳ Animated spinners with multiple styles (Braille, Circle, Bounce)
 - 🧵 Thread-safe operations
 - 🚀 Zero external dependencies (stdlib only)
 
@@ -49,11 +50,12 @@ func main() {
 ```go
 logger := bullets.New(os.Stdout)
 
-logger.Debug("debug message")    // ◦ debug message (dim)
+// By default, all levels use colored bullets (•)
+logger.Debug("debug message")    // ○ debug message (dim)
 logger.Info("info message")      // • info message (cyan)
-logger.Warn("warning message")   // ⚠ warning message (yellow)
-logger.Error("error message")    // ✗ error message (red)
-logger.Success("success!")       // ✓ success! (green)
+logger.Warn("warning message")   // • warning message (yellow)
+logger.Error("error message")    // • error message (red)
+logger.Success("success!")       // • success! (green)
 ```
 
 ### Formatted Messages
@@ -103,6 +105,50 @@ done := logger.Step("running tests")
 done() // Automatically logs completion with duration if > 10s
 ```
 
+### Spinners
+
+Animated spinners for long-running operations:
+
+```go
+// Default Braille spinner (smooth dots)
+spinner := logger.Spinner("downloading files")
+time.Sleep(3 * time.Second)
+spinner.Success("downloaded 10 files")
+
+// Circle spinner (rotating circle)
+spinner = logger.SpinnerCircle("connecting to database")
+time.Sleep(2 * time.Second)
+spinner.Error("connection failed")
+
+// Bounce spinner (bouncing dots)
+spinner = logger.SpinnerBounce("processing data")
+time.Sleep(2 * time.Second)
+spinner.Replace("processed 1000 records")
+
+// Custom frames
+spinner = logger.SpinnerWithFrames("compiling", []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"})
+spinner.Stop() // or spinner.Success(), spinner.Error(), spinner.Replace()
+```
+
+### Customizing Bullets
+
+```go
+logger := bullets.New(os.Stdout)
+
+// Enable special bullet symbols (✓, ✗, ⚠, ○)
+logger.SetUseSpecialBullets(true)
+
+// Set custom bullet for a specific level
+logger.SetBullet(bullets.InfoLevel, "→")
+logger.SetBullet(bullets.ErrorLevel, "💥")
+
+// Set multiple custom bullets at once
+logger.SetBullets(map[bullets.Level]string{
+    bullets.WarnLevel:  "⚡",
+    bullets.DebugLevel: "🔍",
+})
+```
+
 ### Log Levels
 
 ```go
@@ -124,6 +170,20 @@ Available levels:
 
 ## Example Output
 
+**Default (bullets only):**
+```
+• building
+  • binary=dist/app_linux_amd64
+  • binary=dist/app_darwin_amd64
+  • binary=dist/app_windows_amd64
+• archiving
+  • binary=app name=app_0.2.1_linux_amd64
+  • binary=app name=app_0.2.1_darwin_amd64
+• calculating checksums
+• release succeeded
+```
+
+**With special bullets enabled:**
 ```
 • building
   • binary=dist/app_linux_amd64
@@ -136,12 +196,60 @@ Available levels:
 ✓ release succeeded
 ```
 
+**With spinners:**
+```
+⠹ downloading files...    (animating)
+• downloaded 10 files     (completed)
+```
+
 ## Running the Example
 
 ```bash
 cd examples/basic
 go run main.go
 ```
+
+## API Reference
+
+### Logger Methods
+
+**Core logging:**
+- `Debug(msg)`, `Debugf(format, args...)`
+- `Info(msg)`, `Infof(format, args...)`
+- `Warn(msg)`, `Warnf(format, args...)`
+- `Error(msg)`, `Errorf(format, args...)`
+- `Fatal(msg)`, `Fatalf(format, args...)` - logs and exits
+- `Success(msg)`, `Successf(format, args...)`
+
+**Spinners:**
+- `Spinner(msg)` - Default Braille dots spinner
+- `SpinnerDots(msg)` - Braille dots (same as default)
+- `SpinnerCircle(msg)` - Rotating circle
+- `SpinnerBounce(msg)` - Bouncing dots
+- `SpinnerWithFrames(msg, frames)` - Custom animation
+
+**Spinner Control:**
+- `spinner.Stop()` - Stop and clear
+- `spinner.Success(msg)` - Complete with success
+- `spinner.Error(msg)` / `spinner.Fail(msg)` - Complete with error
+- `spinner.Replace(msg)` - Complete with custom message
+
+**Configuration:**
+- `SetLevel(level)`, `GetLevel()`
+- `SetUseSpecialBullets(bool)` - Enable/disable special symbols
+- `SetBullet(level, symbol)` - Set custom bullet for a level
+- `SetBullets(map[Level]string)` - Set multiple custom bullets
+
+**Structured logging:**
+- `WithField(key, value)` - Add single field
+- `WithFields(map[string]interface{})` - Add multiple fields
+- `WithError(err)` - Add error field
+
+**Indentation:**
+- `IncreasePadding()`, `DecreasePadding()`, `ResetPadding()`
+
+**Utilities:**
+- `Step(msg)` - Returns cleanup function with timing
 
 ## Comparison with Other Loggers
 
@@ -152,6 +260,8 @@ This library is designed specifically for CLI applications that need beautiful, 
 
 Unlike general-purpose loggers, `bullets` focuses on:
 - Visual appeal for terminal output
+- Animated spinners for long operations
+- Customizable bullet symbols
 - Simple API for CLI applications
 - Zero configuration needed
 - No external dependencies
