@@ -35,11 +35,12 @@ const (
 
 // Bullet symbols
 const (
-	bulletInfo    = "•"
+	bulletInfo = "•"
+	// bulletInfo    = "●"
 	bulletSuccess = "✓"
 	bulletError   = "✗"
 	bulletWarn    = "⚠"
-	bulletDebug   = "◦"
+	bulletDebug   = "•"
 )
 
 // colorize wraps text in ANSI color codes
@@ -48,25 +49,55 @@ func colorize(color, text string) string {
 }
 
 // getBulletStyle returns the colored bullet and color for a given level
-func getBulletStyle(level Level) (string, string) {
+func getBulletStyle(level Level, useSpecialBullets bool, customBullets map[Level]string) (string, string) {
+	// Priority: custom bullets > special bullets > default circle
+	var bullet string
+	var color string
+
+	// Determine bullet symbol
+	if custom, ok := customBullets[level]; ok {
+		bullet = custom
+	} else if useSpecialBullets {
+		switch level {
+		case DebugLevel:
+			bullet = bulletDebug
+		case InfoLevel:
+			bullet = bulletInfo
+		case WarnLevel:
+			bullet = bulletWarn
+		case ErrorLevel:
+			bullet = bulletError
+		case FatalLevel:
+			bullet = bulletError
+		default:
+			bullet = bulletInfo
+		}
+	} else {
+		// Default: use circle for all levels
+		bullet = bulletInfo
+	}
+
+	// Determine color
 	switch level {
 	case DebugLevel:
-		return colorize(dim, bulletDebug), dim
+		color = dim
 	case InfoLevel:
-		return colorize(cyan, bulletInfo), cyan
+		color = cyan
 	case WarnLevel:
-		return colorize(yellow, bulletWarn), yellow
+		color = yellow
 	case ErrorLevel:
-		return colorize(red, bulletError), red
+		color = red
 	case FatalLevel:
-		return colorize(brightRed+bold, bulletError), brightRed + bold
+		color = brightRed + bold
 	default:
-		return bulletInfo, reset
+		color = reset
 	}
+
+	return colorize(color, bullet), color
 }
 
 // formatMessage formats a message with the appropriate style for the level
-func formatMessage(level Level, msg string) string {
-	bullet, _ := getBulletStyle(level)
+func formatMessage(level Level, msg string, useSpecialBullets bool, customBullets map[Level]string) string {
+	bullet, _ := getBulletStyle(level, useSpecialBullets, customBullets)
 	return fmt.Sprintf("%s %s", bullet, msg)
 }

@@ -13,20 +13,24 @@ import (
 
 // Logger represents a logger with configurable level and output.
 type Logger struct {
-	mu      sync.Mutex
-	writer  io.Writer
-	level   Level
-	padding int
-	fields  map[string]interface{}
+	mu                sync.Mutex
+	writer            io.Writer
+	level             Level
+	padding           int
+	fields            map[string]interface{}
+	useSpecialBullets bool
+	customBullets     map[Level]string
 }
 
 // New creates a new logger that writes to the given writer.
 func New(w io.Writer) *Logger {
 	return &Logger{
-		writer:  w,
-		level:   InfoLevel,
-		padding: 0,
-		fields:  make(map[string]interface{}),
+		writer:            w,
+		level:             InfoLevel,
+		padding:           0,
+		fields:            make(map[string]interface{}),
+		useSpecialBullets: false,
+		customBullets:     make(map[Level]string),
 	}
 }
 
@@ -47,6 +51,32 @@ func (l *Logger) GetLevel() Level {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.level
+}
+
+// SetUseSpecialBullets enables or disables special bullet symbols (✓, ✗, ⚠).
+// When disabled (default), all levels use the circle bullet (●) with level-specific colors.
+func (l *Logger) SetUseSpecialBullets(use bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.useSpecialBullets = use
+}
+
+// SetBullet sets a custom bullet symbol for a specific log level.
+// Custom bullets take priority over special bullets.
+func (l *Logger) SetBullet(level Level, bullet string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.customBullets[level] = bullet
+}
+
+// SetBullets sets custom bullet symbols for multiple log levels.
+// Custom bullets take priority over special bullets.
+func (l *Logger) SetBullets(bullets map[Level]string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for level, bullet := range bullets {
+		l.customBullets[level] = bullet
+	}
 }
 
 // IncreasePadding increases the indentation level.
@@ -78,16 +108,22 @@ func (l *Logger) WithField(key string, value interface{}) *Logger {
 	defer l.mu.Unlock()
 
 	newLogger := &Logger{
-		writer:  l.writer,
-		level:   l.level,
-		padding: l.padding,
-		fields:  make(map[string]interface{}),
+		writer:            l.writer,
+		level:             l.level,
+		padding:           l.padding,
+		fields:            make(map[string]interface{}),
+		useSpecialBullets: l.useSpecialBullets,
+		customBullets:     make(map[Level]string),
 	}
 
 	for k, v := range l.fields {
 		newLogger.fields[k] = v
 	}
 	newLogger.fields[key] = value
+
+	for k, v := range l.customBullets {
+		newLogger.customBullets[k] = v
+	}
 
 	return newLogger
 }
@@ -98,10 +134,12 @@ func (l *Logger) WithFields(fields map[string]interface{}) *Logger {
 	defer l.mu.Unlock()
 
 	newLogger := &Logger{
-		writer:  l.writer,
-		level:   l.level,
-		padding: l.padding,
-		fields:  make(map[string]interface{}),
+		writer:            l.writer,
+		level:             l.level,
+		padding:           l.padding,
+		fields:            make(map[string]interface{}),
+		useSpecialBullets: l.useSpecialBullets,
+		customBullets:     make(map[Level]string),
 	}
 
 	for k, v := range l.fields {
@@ -109,6 +147,10 @@ func (l *Logger) WithFields(fields map[string]interface{}) *Logger {
 	}
 	for k, v := range fields {
 		newLogger.fields[k] = v
+	}
+
+	for k, v := range l.customBullets {
+		newLogger.customBullets[k] = v
 	}
 
 	return newLogger
@@ -132,7 +174,7 @@ func (l *Logger) log(level Level, msg string) {
 	indent := strings.Repeat("  ", l.padding)
 
 	// Format message
-	formatted := formatMessage(level, msg)
+	formatted := formatMessage(level, msg, l.useSpecialBullets, l.customBullets)
 
 	// Add fields if present
 	if len(l.fields) > 0 {
@@ -209,8 +251,18 @@ func (l *Logger) Success(msg string) {
 	}
 
 	indent := strings.Repeat("  ", l.padding)
-	bullet := colorize(green, bulletSuccess)
-	formatted := fmt.Sprintf("%s %s", bullet, msg)
+
+	// Determine bullet symbol for success
+	var bullet string
+	if custom, ok := l.customBullets[InfoLevel]; ok {
+		bullet = custom
+	} else if l.useSpecialBullets {
+		bullet = bulletSuccess
+	} else {
+		bullet = bulletInfo // Default circle
+	}
+
+	formatted := fmt.Sprintf("%s %s", colorize(green, bullet), msg)
 
 	fmt.Fprintf(l.writer, "%s%s\n", indent, formatted)
 }

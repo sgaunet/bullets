@@ -39,7 +39,6 @@ func main() {
 	logger.Success("release succeeded after 3s")
 
 	// Demonstrate different log levels
-	logger.Info("")
 	logger.Info("demonstrating log levels:")
 	logger.IncreasePadding()
 
@@ -51,7 +50,6 @@ func main() {
 	logger.DecreasePadding()
 
 	// Demonstrate structured logging with fields
-	logger.Info("")
 	logger.Info("structured logging example:")
 	logger.IncreasePadding()
 
@@ -67,18 +65,16 @@ func main() {
 	logger.DecreasePadding()
 
 	// Demonstrate Step function with timing
-	logger.Info("")
 	logger.Info("step function with timing:")
 	done := logger.Step("processing large dataset")
 	time.Sleep(2 * time.Second) // Simulate work
-	done()                       // This will log completion
+	done()                      // This will log completion
 
 	// Another step that takes longer
 	done = logger.Step("running integration tests")
 	time.Sleep(11 * time.Second) // Simulate longer work
-	done()                        // This will include duration info
+	done()                       // This will include duration info
 
-	logger.Info("")
 	logger.Success("all examples completed!")
 }
 
