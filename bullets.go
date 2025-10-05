@@ -210,7 +210,7 @@ func (l *Logger) Success(msg string) {
 
 	indent := strings.Repeat("  ", l.padding)
 	bullet := colorize(green, bulletSuccess)
-	formatted := fmt.Sprintf("%s %s", bullet, colorize(green, msg))
+	formatted := fmt.Sprintf("%s %s", bullet, msg)
 
 	fmt.Fprintf(l.writer, "%s%s\n", indent, formatted)
 }

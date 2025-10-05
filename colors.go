@@ -67,6 +67,6 @@ func getBulletStyle(level Level) (string, string) {
 
 // formatMessage formats a message with the appropriate style for the level
 func formatMessage(level Level, msg string) string {
-	bullet, color := getBulletStyle(level)
-	return fmt.Sprintf("%s %s", bullet, colorize(color, msg))
+	bullet, _ := getBulletStyle(level)
+	return fmt.Sprintf("%s %s", bullet, msg)
 }
