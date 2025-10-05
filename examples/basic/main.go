@@ -75,6 +75,39 @@ func main() {
 	time.Sleep(11 * time.Second) // Simulate longer work
 	done()                       // This will include duration info
 
+	// Demonstrate spinner functionality
+	logger.Info("")
+	logger.Info("spinner examples:")
+	logger.IncreasePadding()
+
+	// Default Braille spinner with success
+	spinner := logger.Spinner("downloading files")
+	time.Sleep(3 * time.Second)
+	spinner.Success("downloaded 10 files")
+
+	// Circle spinner with error
+	spinner = logger.SpinnerCircle("connecting to database")
+	time.Sleep(2 * time.Second)
+	spinner.Error("connection failed")
+
+	// Bounce spinner with custom completion
+	spinner = logger.SpinnerBounce("processing data")
+	time.Sleep(2 * time.Second)
+	spinner.Replace("processed 1000 records")
+
+	// Dots spinner (same as default)
+	spinner = logger.SpinnerDots("installing packages")
+	time.Sleep(2 * time.Second)
+	spinner.Success("packages installed")
+
+	// Custom frames spinner
+	spinner = logger.SpinnerWithFrames("compiling code", []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"})
+	time.Sleep(2 * time.Second)
+	spinner.Success("compilation complete")
+
+	logger.DecreasePadding()
+
+	logger.Info("")
 	logger.Success("all examples completed!")
 }
 

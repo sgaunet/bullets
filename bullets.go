@@ -289,3 +289,60 @@ func (l *Logger) Step(msg string) func() {
 		}
 	}
 }
+
+// Spinner creates and starts a spinner with default Braille animation.
+// The spinner uses a smooth Braille dot pattern.
+// Call Stop(), Success(), Error(), or Replace() on the returned spinner to stop it.
+func (l *Logger) Spinner(msg string) *Spinner {
+	l.mu.Lock()
+	color := cyan // Default info level color
+	l.mu.Unlock()
+
+	// Default Braille spinner
+	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	return newSpinner(l, msg, frames, color, 80*time.Millisecond)
+}
+
+// SpinnerDots creates a spinner with rotating Braille dots pattern.
+// This is the default spinner style with smooth dot transitions.
+func (l *Logger) SpinnerDots(msg string) *Spinner {
+	l.mu.Lock()
+	color := cyan
+	l.mu.Unlock()
+
+	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	return newSpinner(l, msg, frames, color, 80*time.Millisecond)
+}
+
+// SpinnerCircle creates a spinner with growing/shrinking circle pattern.
+// Creates a glassy circular rotation effect.
+func (l *Logger) SpinnerCircle(msg string) *Spinner {
+	l.mu.Lock()
+	color := cyan
+	l.mu.Unlock()
+
+	frames := []string{"◐", "◓", "◑", "◒"}
+	return newSpinner(l, msg, frames, color, 100*time.Millisecond)
+}
+
+// SpinnerBounce creates a spinner with bouncing dot pattern.
+// Creates a smooth bouncing animation effect.
+func (l *Logger) SpinnerBounce(msg string) *Spinner {
+	l.mu.Lock()
+	color := cyan
+	l.mu.Unlock()
+
+	frames := []string{"⠁", "⠂", "⠄", "⡀", "⢀", "⠠", "⠐", "⠈"}
+	return newSpinner(l, msg, frames, color, 80*time.Millisecond)
+}
+
+// SpinnerWithFrames creates and starts a spinner with custom animation frames.
+// Frames will cycle through the provided slice of strings.
+// Call Stop(), Success(), Error(), or Replace() on the returned spinner to stop it.
+func (l *Logger) SpinnerWithFrames(msg string, frames []string) *Spinner {
+	l.mu.Lock()
+	color := cyan // Default info level color
+	l.mu.Unlock()
+
+	return newSpinner(l, msg, frames, color, 100*time.Millisecond)
+}
