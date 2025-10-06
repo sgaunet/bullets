@@ -68,8 +68,8 @@ func TestCompleteLoggingWorkflow(t *testing.T) {
 
 // TestMixedSpinnerAndLogging tests spinner with regular logging intermixed
 func TestMixedSpinnerAndLogging(t *testing.T) {
-	var buf bytes.Buffer
-	logger := bullets.New(&buf)
+	writer := &syncWriterIntegration{buf: &bytes.Buffer{}}
+	logger := bullets.New(writer)
 
 	// Start spinner
 	spinner := logger.Spinner("Background task running")
@@ -88,7 +88,7 @@ func TestMixedSpinnerAndLogging(t *testing.T) {
 	// Continue logging after spinner
 	logger.Info("Post-spinner logging")
 
-	output := buf.String()
+	output := writer.String()
 	if !strings.Contains(output, "Background task complete") {
 		t.Error("Spinner completion not found")
 	}
@@ -169,9 +169,9 @@ func TestHighVolumeLogging(t *testing.T) {
 
 // TestConcurrentMixedOperations tests all features used concurrently
 func TestConcurrentMixedOperations(t *testing.T) {
-	var buf bytes.Buffer
-	logger := bullets.New(&buf)
-	updatable := bullets.NewUpdatable(&buf)
+	writer := &syncWriterIntegration{buf: &bytes.Buffer{}}
+	logger := bullets.New(writer)
+	updatable := bullets.NewUpdatable(writer)
 
 	var wg sync.WaitGroup
 
@@ -508,4 +508,22 @@ func TestEdgeCaseIntegration(t *testing.T) {
 	if output == "" {
 		t.Error("Expected output from edge case integration")
 	}
+}
+
+// syncWriterIntegration wraps bytes.Buffer to make it thread-safe
+type syncWriterIntegration struct {
+	mu  sync.Mutex
+	buf *bytes.Buffer
+}
+
+func (w *syncWriterIntegration) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.Write(p)
+}
+
+func (w *syncWriterIntegration) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.String()
 }

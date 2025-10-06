@@ -149,8 +149,9 @@ func TestNegativePadding(t *testing.T) {
 
 // TestConcurrentLogging tests thread safety
 func TestConcurrentLogging(t *testing.T) {
-	var buf bytes.Buffer
-	logger := bullets.New(&buf)
+	// Use a thread-safe writer for concurrent tests
+	writer := &syncWriter{buf: &bytes.Buffer{}}
+	logger := bullets.New(writer)
 
 	const goroutines = 100
 	const logsPerRoutine = 100
@@ -180,7 +181,7 @@ func TestConcurrentLogging(t *testing.T) {
 
 	wg.Wait()
 
-	output := buf.String()
+	output := writer.String()
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 
 	// Should have many log lines (depending on log level)
@@ -344,8 +345,8 @@ func TestPanicInFormatFunc(t *testing.T) {
 
 // TestRaceConditions specifically tests for race conditions
 func TestRaceConditions(t *testing.T) {
-	var buf bytes.Buffer
-	logger := bullets.New(&buf)
+	writer := &syncWriter{buf: &bytes.Buffer{}}
+	logger := bullets.New(writer)
 
 	const iterations = 1000
 
@@ -454,4 +455,22 @@ func TestMemoryLeaks(t *testing.T) {
 
 	// This test doesn't directly check for leaks but exercises
 	// paths that might leak memory. Use with memory profiler.
+}
+
+// syncWriter wraps bytes.Buffer to make it thread-safe
+type syncWriter struct {
+	mu  sync.Mutex
+	buf *bytes.Buffer
+}
+
+func (w *syncWriter) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.Write(p)
+}
+
+func (w *syncWriter) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.String()
 }

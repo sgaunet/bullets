@@ -76,8 +76,8 @@ func TestNonTTYFallback(t *testing.T) {
 
 // TestConcurrentHandleUpdates tests concurrent updates to same handle
 func TestConcurrentHandleUpdates(t *testing.T) {
-	var buf bytes.Buffer
-	logger := bullets.NewUpdatable(&buf)
+	writer := &syncWriterUpdatable{buf: &bytes.Buffer{}}
+	logger := bullets.NewUpdatable(writer)
 
 	handle := logger.InfoHandle("Starting...")
 
@@ -282,8 +282,8 @@ func TestUpdatableWithFailingWriter(t *testing.T) {
 
 // TestConcurrentLineCount tests concurrent line count updates
 func TestConcurrentLineCount(t *testing.T) {
-	var buf bytes.Buffer
-	logger := bullets.NewUpdatable(&buf)
+	writer := &syncWriterUpdatable{buf: &bytes.Buffer{}}
+	logger := bullets.NewUpdatable(writer)
 
 	const goroutines = 20
 	var wg sync.WaitGroup
@@ -381,8 +381,8 @@ func TestEmptyStringOperations(t *testing.T) {
 
 // TestHandleGroupThreadSafety tests thread safety of handle groups
 func TestHandleGroupThreadSafety(t *testing.T) {
-	var buf bytes.Buffer
-	logger := bullets.NewUpdatable(&buf)
+	writer := &syncWriterUpdatable{buf: &bytes.Buffer{}}
+	logger := bullets.NewUpdatable(writer)
 
 	group := bullets.NewHandleGroup()
 
@@ -404,7 +404,10 @@ func TestHandleGroupThreadSafety(t *testing.T) {
 			if id%5 == 0 {
 				group.Clear()
 			} else {
-				_ = group.Get(id % group.Size())
+				size := group.Size()
+				if size > 0 {
+					_ = group.Get(id % size)
+				}
 			}
 		}(i)
 	}
@@ -494,4 +497,22 @@ func (w *failingWriterUpdatable) Write(p []byte) (n int, err error) {
 		return 0, fmt.Errorf("simulated write failure")
 	}
 	return len(p), nil
+}
+
+// syncWriterUpdatable wraps bytes.Buffer to make it thread-safe
+type syncWriterUpdatable struct {
+	mu  sync.Mutex
+	buf *bytes.Buffer
+}
+
+func (w *syncWriterUpdatable) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.Write(p)
+}
+
+func (w *syncWriterUpdatable) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.String()
 }

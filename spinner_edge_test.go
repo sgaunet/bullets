@@ -86,8 +86,8 @@ func TestSpinnerDoubleStop(t *testing.T) {
 
 // TestSpinnerConcurrentOperations tests concurrent spinner operations
 func TestSpinnerConcurrentOperations(t *testing.T) {
-	var buf bytes.Buffer
-	logger := bullets.New(&buf)
+	writer := &syncWriterSpinner{buf: &bytes.Buffer{}}
+	logger := bullets.New(writer)
 
 	spinner := logger.Spinner("Concurrent test")
 
@@ -171,8 +171,8 @@ func TestSpinnerAfterStop(t *testing.T) {
 
 // TestMultipleSpinnersSimultaneous tests multiple spinners at once
 func TestMultipleSpinnersSimultaneous(t *testing.T) {
-	var buf bytes.Buffer
-	logger := bullets.New(&buf)
+	writer := &syncWriterSpinner{buf: &bytes.Buffer{}}
+	logger := bullets.New(writer)
 
 	// Create multiple spinners
 	spinners := make([]*bullets.Spinner, 10)
@@ -381,4 +381,22 @@ func TestSpinnerAllStylesEdgeCases(t *testing.T) {
 	}
 
 	// All styles should handle immediate stop
+}
+
+// syncWriterSpinner wraps bytes.Buffer to make it thread-safe
+type syncWriterSpinner struct {
+	mu  sync.Mutex
+	buf *bytes.Buffer
+}
+
+func (w *syncWriterSpinner) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.Write(p)
+}
+
+func (w *syncWriterSpinner) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.String()
 }
