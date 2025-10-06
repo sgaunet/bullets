@@ -10,6 +10,12 @@ import (
 )
 
 func main() {
+	// IMPORTANT: If updates are not working in-place (just printing new lines),
+	// set the environment variable BULLETS_FORCE_TTY=1 before running this example.
+	// This is often needed when running via 'go run' or in certain terminals.
+	//
+	// Example: export BULLETS_FORCE_TTY=1 && go run main.go
+
 	// Create an updatable logger
 	logger := bullets.NewUpdatable(os.Stdout)
 
@@ -47,15 +53,19 @@ func main() {
 
 	var wg sync.WaitGroup
 	// Simulate different download speeds
-	wg.Go(func() {
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
 		updateDownload(download1, "package-1.tar.gz", 50*time.Millisecond)
-	})
-	wg.Go(func() {
+	}()
+	go func() {
+		defer wg.Done()
 		updateDownload(download2, "package-2.tar.gz", 100*time.Millisecond)
-	})
-	wg.Go(func() {
+	}()
+	go func() {
+		defer wg.Done()
 		updateDownload(download3, "package-3.tar.gz", 75*time.Millisecond)
-	})
+	}()
 
 	wg.Wait()
 	time.Sleep(500 * time.Millisecond)
@@ -212,8 +222,9 @@ func main() {
 
 // updateDownload simulates a download with progress updates
 func updateDownload(handle *bullets.BulletHandle, filename string, speed time.Duration) {
+	// Progress updates will be shown with the original message
 	for i := 0; i <= 100; i += 10 {
-		handle.Progress(i, 100).UpdateMessage(filename)
+		handle.Progress(i, 100)
 		time.Sleep(speed)
 	}
 	handle.Success(filename + " downloaded successfully ✓")

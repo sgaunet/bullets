@@ -135,7 +135,26 @@ spinner.Stop() // or spinner.Success(), spinner.Error(), spinner.Replace()
 
 ### Updatable Bullets
 
-Create bullets that can be updated after rendering - perfect for showing progress, updating status, and creating dynamic terminal UIs:
+Create bullets that can be updated after rendering - perfect for showing progress, updating status, and creating dynamic terminal UIs.
+
+**⚠️ Important Terminal Requirements:**
+
+The updatable feature requires ANSI escape code support and proper TTY detection. If bullets are not updating in-place (appearing as new lines instead):
+
+1. **Force TTY mode** by setting an environment variable:
+   ```bash
+   export BULLETS_FORCE_TTY=1
+   go run your-program.go
+   ```
+
+2. **Why this is needed:**
+   - `go run` often doesn't properly detect terminal capabilities
+   - Some terminal emulators don't report as TTY correctly
+   - IDE integrated terminals may not support ANSI codes
+
+3. **Fallback behavior:**
+   - When TTY is not detected, updates print as new lines (safe fallback)
+   - This ensures your program works in all environments (logs, CI/CD, etc.)
 
 ```go
 // Create an updatable logger
@@ -274,8 +293,15 @@ go run main.go
 
 **Updatable bullets example:**
 ```bash
+# REQUIRED: Set this environment variable for the updates to work properly
+export BULLETS_FORCE_TTY=1
 go run examples/updatable/main.go
 ```
+
+**Note:** The updatable feature uses ANSI escape codes to update lines in place. You MUST:
+1. Run in a terminal that supports ANSI codes (most modern terminals)
+2. Set `BULLETS_FORCE_TTY=1` environment variable
+3. Run directly in the terminal (not through pipes or output redirection)
 
 This demonstrates all updatable features including status updates, progress tracking, batch operations, and parallel operations.
 

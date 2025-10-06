@@ -126,8 +126,8 @@ func (h *BulletHandle) Progress(current, total int) *BulletHandle {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Update message with progress
-	h.message = h.message + " " + progressBar
+	// Store progress bar separately, keep message intact
+	h.progressBar = progressBar
 
 	if h.lineNum != -1 && h.logger.isTTY {
 		h.redraw()
@@ -144,7 +144,7 @@ func renderProgressBar(percentage int) string {
 	for i := 0; i < barWidth; i++ {
 		if i < filled {
 			bar += "="
-		} else if i == filled {
+		} else if i == filled && percentage < 100 {
 			bar += ">"
 		} else {
 			bar += " "
@@ -152,7 +152,7 @@ func renderProgressBar(percentage int) string {
 	}
 	bar += "]"
 
-	return bar + " " + colorize(cyan, fmt.Sprintf("%d%%", percentage))
+	return fmt.Sprintf("%s %d%%", bar, percentage)
 }
 
 // HandleGroup manages a group of related handles

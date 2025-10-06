@@ -12,23 +12,26 @@ import (
 // UpdatableLogger wraps a regular Logger and provides updatable bullet functionality
 type UpdatableLogger struct {
 	*Logger
-	mu       sync.RWMutex
-	handles  []*BulletHandle
+	mu        sync.RWMutex
+	writeMu   sync.Mutex  // Mutex for terminal write operations
+	handles   []*BulletHandle
 	lineCount int  // Track total lines written
-	isTTY    bool  // Whether output is a terminal
+	isTTY     bool // Whether output is a terminal
 }
 
 // BulletHandle represents a handle to an updatable bullet
 type BulletHandle struct {
-	logger    *UpdatableLogger
-	lineNum   int     // Line number relative to start
-	level     Level
-	message   string
-	color     string
-	bullet    string
-	padding   int
-	fields    map[string]interface{}
-	mu        sync.Mutex
+	logger         *UpdatableLogger
+	lineNum        int     // Line number relative to start
+	level          Level
+	message        string
+	originalMessage string  // Store original message for progress updates
+	progressBar    string  // Store progress bar separately
+	color          string
+	bullet         string
+	padding        int
+	fields         map[string]interface{}
+	mu             sync.Mutex
 }
 
 // ANSI escape codes for cursor control
@@ -45,7 +48,11 @@ const (
 func NewUpdatable(w io.Writer) *UpdatableLogger {
 	// Check if output is a terminal
 	isTTY := false
-	if f, ok := w.(*os.File); ok {
+
+	// Allow forcing TTY mode via environment variable for testing
+	if os.Getenv("BULLETS_FORCE_TTY") == "1" {
+		isTTY = true
+	} else if f, ok := w.(*os.File); ok {
 		isTTY = term.IsTerminal(int(f.Fd()))
 	}
 
@@ -84,24 +91,28 @@ func (ul *UpdatableLogger) logHandle(level Level, msg string) *BulletHandle {
 	// Log the message normally
 	ul.Logger.log(level, msg)
 
-	// If not a TTY, return a dummy handle
+	// If not a TTY, return a handle that prints updates as new lines
 	if !ul.isTTY {
 		return &BulletHandle{
-			logger:  ul,
-			lineNum: -1,
-			level:   level,
-			message: msg,
+			logger:          ul,
+			lineNum:         -1,
+			level:           level,
+			message:         msg,
+			originalMessage: msg,
+			padding:         ul.Logger.padding,
+			fields:          make(map[string]interface{}),
 		}
 	}
 
 	// Create and register handle
 	handle := &BulletHandle{
-		logger:  ul,
-		lineNum: ul.lineCount,
-		level:   level,
-		message: msg,
-		padding: ul.Logger.padding,
-		fields:  make(map[string]interface{}),
+		logger:          ul,
+		lineNum:         ul.lineCount,
+		level:           level,
+		message:         msg,
+		originalMessage: msg,
+		padding:         ul.Logger.padding,
+		fields:          make(map[string]interface{}),
 	}
 
 	// Copy fields from logger
@@ -124,9 +135,13 @@ func (h *BulletHandle) Update(level Level, msg string) *BulletHandle {
 
 	h.level = level
 	h.message = msg
+	h.progressBar = ""  // Clear progress bar on update
 
 	if h.lineNum != -1 && h.logger.isTTY {
 		h.redraw()
+	} else if h.lineNum == -1 && !h.logger.isTTY {
+		// Fallback: print as new line when not in TTY mode
+		h.logger.Logger.log(level, msg)
 	}
 	return h
 }
@@ -137,6 +152,7 @@ func (h *BulletHandle) UpdateMessage(msg string) *BulletHandle {
 	defer h.mu.Unlock()
 
 	h.message = msg
+	h.originalMessage = msg  // Also update original message
 
 	if h.lineNum != -1 && h.logger.isTTY {
 		h.redraw()
@@ -163,10 +179,14 @@ func (h *BulletHandle) Success(msg string) *BulletHandle {
 	defer h.mu.Unlock()
 
 	h.message = msg
+	h.progressBar = ""  // Clear progress bar on success
 
 	if h.lineNum != -1 && h.logger.isTTY {
 		// Success uses a special rendering
 		h.redrawSuccess()
+	} else if h.lineNum == -1 && !h.logger.isTTY {
+		// Fallback: print as new success line when not in TTY mode
+		h.logger.Logger.Success(msg)
 	}
 	return h
 }
@@ -218,22 +238,30 @@ func (h *BulletHandle) redraw() {
 
 	linesToMoveUp := currentLine - h.lineNum
 
+	// Lock for terminal write operations
+	h.logger.writeMu.Lock()
+	defer h.logger.writeMu.Unlock()
+
 	if linesToMoveUp > 0 {
-		// Save cursor, move up, redraw, restore cursor
-		fmt.Fprint(h.logger.writer, ansiSaveCursor)
+		// Move up to the target line
 		fmt.Fprintf(h.logger.writer, ansiMoveUp, linesToMoveUp)
+
+		// Clear the line and move to start of line
 		fmt.Fprint(h.logger.writer, ansiClearLine)
 		fmt.Fprint(h.logger.writer, ansiMoveToCol)
 
-		// Render the updated bullet
-		h.render()
+		// Render the updated bullet without newline
+		h.renderInPlace()
 
-		fmt.Fprint(h.logger.writer, ansiRestoreCursor)
+		// Move back down to the last line
+		fmt.Fprintf(h.logger.writer, ansiMoveDown, linesToMoveUp)
+		// Move to start of next line
+		fmt.Fprint(h.logger.writer, "\r")
 	} else {
 		// Current line, just clear and redraw
 		fmt.Fprint(h.logger.writer, "\r")
 		fmt.Fprint(h.logger.writer, ansiClearLine)
-		h.render()
+		h.renderInPlace()
 	}
 }
 
@@ -245,25 +273,41 @@ func (h *BulletHandle) redrawSuccess() {
 
 	linesToMoveUp := currentLine - h.lineNum
 
+	// Lock for terminal write operations
+	h.logger.writeMu.Lock()
+	defer h.logger.writeMu.Unlock()
+
 	if linesToMoveUp > 0 {
-		fmt.Fprint(h.logger.writer, ansiSaveCursor)
+		// Move up to the target line
 		fmt.Fprintf(h.logger.writer, ansiMoveUp, linesToMoveUp)
+
+		// Clear the line and move to start of line
 		fmt.Fprint(h.logger.writer, ansiClearLine)
 		fmt.Fprint(h.logger.writer, ansiMoveToCol)
 
-		// Render as success
-		h.renderSuccess()
+		// Render as success without newline
+		h.renderSuccessInPlace()
 
-		fmt.Fprint(h.logger.writer, ansiRestoreCursor)
+		// Move back down to the last line
+		fmt.Fprintf(h.logger.writer, ansiMoveDown, linesToMoveUp)
+		// Move to start of next line
+		fmt.Fprint(h.logger.writer, "\r")
 	} else {
+		// Current line, just clear and redraw
 		fmt.Fprint(h.logger.writer, "\r")
 		fmt.Fprint(h.logger.writer, ansiClearLine)
-		h.renderSuccess()
+		h.renderSuccessInPlace()
 	}
 }
 
-// render outputs the bullet without cursor manipulation
+// render outputs the bullet without cursor manipulation (with newline)
 func (h *BulletHandle) render() {
+	h.renderInPlace()
+	fmt.Fprint(h.logger.writer, "\n")
+}
+
+// renderInPlace outputs the bullet without cursor manipulation and without newline
+func (h *BulletHandle) renderInPlace() {
 	indent := strings.Repeat("  ", h.padding)
 
 	// Get bullet style
@@ -274,6 +318,11 @@ func (h *BulletHandle) render() {
 
 	formatted := formatMessage(h.level, h.message, useSpecial, customBullets)
 
+	// Add progress bar if present
+	if h.progressBar != "" {
+		formatted += " " + colorize(cyan, h.progressBar)
+	}
+
 	// Add fields if present
 	if len(h.fields) > 0 {
 		var parts []string
@@ -283,11 +332,17 @@ func (h *BulletHandle) render() {
 		formatted += colorize(dim, fmt.Sprintf(" (%s)", strings.Join(parts, ", ")))
 	}
 
-	fmt.Fprintf(h.logger.writer, "%s%s\n", indent, formatted)
+	fmt.Fprintf(h.logger.writer, "%s%s", indent, formatted)
 }
 
-// renderSuccess outputs the bullet as a success message
+// renderSuccess outputs the bullet as a success message (with newline)
 func (h *BulletHandle) renderSuccess() {
+	h.renderSuccessInPlace()
+	fmt.Fprint(h.logger.writer, "\n")
+}
+
+// renderSuccessInPlace outputs the bullet as a success message without newline
+func (h *BulletHandle) renderSuccessInPlace() {
 	indent := strings.Repeat("  ", h.padding)
 
 	h.logger.Logger.mu.Lock()
@@ -316,7 +371,7 @@ func (h *BulletHandle) renderSuccess() {
 		formatted += colorize(dim, fmt.Sprintf(" (%s)", strings.Join(parts, ", ")))
 	}
 
-	fmt.Fprintf(h.logger.writer, "%s%s\n", indent, formatted)
+	fmt.Fprintf(h.logger.writer, "%s%s", indent, formatted)
 }
 
 // BatchUpdate allows updating multiple handles at once
