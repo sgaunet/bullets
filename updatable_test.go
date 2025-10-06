@@ -208,21 +208,33 @@ func TestBulletHandle_Progress(t *testing.T) {
 
 	handle := logger.InfoHandle("Downloading...")
 
-	// Test progress updates
+	// Test progress updates - progress is now stored separately in progressBar field
 	handle.Progress(25, 100)
-	state := handle.GetState()
 
-	// Check that message contains progress indicator
-	if !strings.Contains(state.Message, "[") || !strings.Contains(state.Message, "]") {
-		t.Errorf("Progress bar not found in message: %s", state.Message)
+	// Access the progressBar field directly through the handle
+	if handle.progressBar == "" {
+		t.Error("Progress bar not set after Progress() call")
+	}
+
+	// Check that progress bar contains expected format
+	if !strings.Contains(handle.progressBar, "[") || !strings.Contains(handle.progressBar, "]") {
+		t.Errorf("Progress bar format incorrect: %s", handle.progressBar)
+	}
+
+	if !strings.Contains(handle.progressBar, "25%") {
+		t.Errorf("Expected 25%% in progress bar, got: %s", handle.progressBar)
 	}
 
 	// Test 100% progress
 	handle.Progress(100, 100)
-	state = handle.GetState()
 
-	if !strings.Contains(state.Message, "100%") {
-		t.Errorf("100%% not found in message: %s", state.Message)
+	if !strings.Contains(handle.progressBar, "100%") {
+		t.Errorf("Expected 100%% in progress bar, got: %s", handle.progressBar)
+	}
+
+	// Verify original message is unchanged
+	if handle.message != "Downloading..." {
+		t.Errorf("Original message should be preserved, got: %s", handle.message)
 	}
 }
 
