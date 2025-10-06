@@ -11,6 +11,9 @@ A colorful terminal logger for Go with bullet-style output, inspired by [gorelea
 - ⏱️  Timing information for long-running operations
 - 🔄 Indentation/padding support for nested operations
 - ⏳ Animated spinners with multiple styles (Braille, Circle, Bounce)
+- 🔄 **Updatable bullets** - Update previously rendered bullets in real-time
+- 📊 **Progress indicators** - Show progress bars within bullets
+- 🎯 **Batch operations** - Update multiple bullets simultaneously
 - 🧵 Thread-safe operations
 - 🚀 Zero external dependencies (stdlib only)
 
@@ -130,6 +133,84 @@ spinner = logger.SpinnerWithFrames("compiling", []string{"⣾", "⣽", "⣻", "�
 spinner.Stop() // or spinner.Success(), spinner.Error(), spinner.Replace()
 ```
 
+### Updatable Bullets
+
+Create bullets that can be updated after rendering - perfect for showing progress, updating status, and creating dynamic terminal UIs.
+
+**⚠️ Important Terminal Requirements:**
+
+The updatable feature requires ANSI escape code support and proper TTY detection. If bullets are not updating in-place (appearing as new lines instead):
+
+1. **Force TTY mode** by setting an environment variable:
+   ```bash
+   export BULLETS_FORCE_TTY=1
+   go run your-program.go
+   ```
+
+2. **Why this is needed:**
+   - `go run` often doesn't properly detect terminal capabilities
+   - Some terminal emulators don't report as TTY correctly
+   - IDE integrated terminals may not support ANSI codes
+
+3. **Fallback behavior:**
+   - When TTY is not detected, updates print as new lines (safe fallback)
+   - This ensures your program works in all environments (logs, CI/CD, etc.)
+
+```go
+// Create an updatable logger
+logger := bullets.NewUpdatable(os.Stdout)
+
+// Create bullets that return handles
+handle1 := logger.InfoHandle("Downloading package...")
+handle2 := logger.InfoHandle("Installing dependencies...")
+handle3 := logger.InfoHandle("Running tests...")
+
+// Update them later
+handle1.Success("Package downloaded ✓")
+handle2.Error("Dependencies failed ✗")
+handle3.Warning("Tests completed with warnings ⚠")
+```
+
+**Progress indicators:**
+```go
+download := logger.InfoHandle("Downloading file...")
+
+// Show progress (updates message with progress bar)
+for i := 0; i <= 100; i += 10 {
+    download.Progress(i, 100)
+    time.Sleep(100 * time.Millisecond)
+}
+download.Success("Download complete!")
+```
+
+**Batch operations:**
+```go
+// Group handles for batch updates
+h1 := logger.InfoHandle("Service 1")
+h2 := logger.InfoHandle("Service 2")
+h3 := logger.InfoHandle("Service 3")
+
+group := bullets.NewHandleGroup(h1, h2, h3)
+group.SuccessAll("All services running")
+
+// Or use chains
+bullets.Chain(h1, h2, h3).
+    WithField("status", "active").
+    Success("All systems operational")
+```
+
+**Adding fields dynamically:**
+```go
+handle := logger.InfoHandle("Building project")
+
+// Add fields as the operation progresses
+handle.WithField("version", "1.2.3")
+handle.WithFields(map[string]interface{}{
+    "arch": "amd64",
+    "os": "linux",
+})
+```
+
 ### Customizing Bullets
 
 ```go
@@ -202,12 +283,27 @@ Available levels:
 • downloaded 10 files     (completed)
 ```
 
-## Running the Example
+## Running the Examples
 
+**Basic example:**
 ```bash
 cd examples/basic
 go run main.go
 ```
+
+**Updatable bullets example:**
+```bash
+# REQUIRED: Set this environment variable for the updates to work properly
+export BULLETS_FORCE_TTY=1
+go run examples/updatable/main.go
+```
+
+**Note:** The updatable feature uses ANSI escape codes to update lines in place. You MUST:
+1. Run in a terminal that supports ANSI codes (most modern terminals)
+2. Set `BULLETS_FORCE_TTY=1` environment variable
+3. Run directly in the terminal (not through pipes or output redirection)
+
+This demonstrates all updatable features including status updates, progress tracking, batch operations, and parallel operations.
 
 ## API Reference
 
@@ -250,6 +346,58 @@ go run main.go
 
 **Utilities:**
 - `Step(msg)` - Returns cleanup function with timing
+
+### UpdatableLogger Methods
+
+**Create updatable logger:**
+- `NewUpdatable(w io.Writer)` - Create new updatable logger
+
+**Create handle-returning bullets:**
+- `InfoHandle(msg string) *BulletHandle` - Log info and return handle
+- `DebugHandle(msg string) *BulletHandle` - Log debug and return handle
+- `WarnHandle(msg string) *BulletHandle` - Log warning and return handle
+- `ErrorHandle(msg string) *BulletHandle` - Log error and return handle
+
+### BulletHandle Methods
+
+**Update operations:**
+- `Update(level Level, msg string)` - Update level and message
+- `UpdateMessage(msg string)` - Update message only
+- `UpdateLevel(level Level)` - Update level only
+- `UpdateColor(color string)` - Update color only
+- `UpdateBullet(bullet string)` - Update bullet symbol only
+
+**State transitions:**
+- `Success(msg string)` - Mark as success with message
+- `Error(msg string)` - Mark as error with message
+- `Warning(msg string)` - Mark as warning with message
+
+**Fields and metadata:**
+- `WithField(key, value)` - Add a field
+- `WithFields(fields)` - Add multiple fields
+
+**Progress tracking:**
+- `Progress(current, total int)` - Show progress bar
+
+**State management:**
+- `GetState() HandleState` - Get current state
+- `SetState(state HandleState)` - Set complete state
+
+### HandleGroup Methods
+
+- `NewHandleGroup(handles...)` - Create handle group
+- `Add(handle)` - Add handle to group
+- `UpdateAll(level, msg)` - Update all handles
+- `SuccessAll(msg)` - Mark all as success
+- `ErrorAll(msg)` - Mark all as error
+
+### HandleChain Methods
+
+- `Chain(handles...)` - Create handle chain
+- `Update(level, msg)` - Chain update operation
+- `Success(msg)` - Chain success operation
+- `Error(msg)` - Chain error operation
+- `WithField(key, value)` - Chain field addition
 
 ## Comparison with Other Loggers
 

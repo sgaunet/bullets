@@ -5,6 +5,7 @@ import "fmt"
 // ANSI color codes for terminal output
 const (
 	reset = "\033[0m"
+	Reset = reset // Exported version
 
 	// Text colors
 	black   = "\033[30m"
@@ -16,6 +17,16 @@ const (
 	cyan    = "\033[36m"
 	white   = "\033[37m"
 
+	// Exported color constants for public use
+	ColorBlack   = black
+	ColorRed     = red
+	ColorGreen   = green
+	ColorYellow  = yellow
+	ColorBlue    = blue
+	ColorMagenta = magenta
+	ColorCyan    = cyan
+	ColorWhite   = white
+
 	// Bright colors
 	brightBlack   = "\033[90m"
 	brightRed     = "\033[91m"
@@ -26,11 +37,27 @@ const (
 	brightCyan    = "\033[96m"
 	brightWhite   = "\033[97m"
 
+	// Exported bright color constants
+	ColorBrightBlack   = brightBlack
+	ColorBrightRed     = brightRed
+	ColorBrightGreen   = brightGreen
+	ColorBrightYellow  = brightYellow
+	ColorBrightBlue    = brightBlue
+	ColorBrightMagenta = brightMagenta
+	ColorBrightCyan    = brightCyan
+	ColorBrightWhite   = brightWhite
+
 	// Text styles
 	bold      = "\033[1m"
 	dim       = "\033[2m"
 	italic    = "\033[3m"
 	underline = "\033[4m"
+
+	// Exported style constants
+	StyleBold      = bold
+	StyleDim       = dim
+	StyleItalic    = italic
+	StyleUnderline = underline
 )
 
 // Bullet symbols
@@ -42,9 +69,14 @@ const (
 	bulletDebug   = "○"
 )
 
-// colorize wraps text in ANSI color codes
+// colorize wraps text in ANSI color codes (internal use)
 func colorize(color, text string) string {
 	return color + text + reset
+}
+
+// Colorize wraps text in ANSI color codes (exported for public use)
+func Colorize(color, text string) string {
+	return colorize(color, text)
 }
 
 // getBulletStyle returns the colored bullet and color for a given level
