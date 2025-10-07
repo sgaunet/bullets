@@ -1,5 +1,14 @@
 # Bullets
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/sgaunet/bullets)](https://goreportcard.com/report/github.com/sgaunet/bullets)
+[![GitHub release](https://img.shields.io/github/release/sgaunet/bullets.svg)](https://github.com/sgaunet/bullets/releases/latest)
+[![linter](https://github.com/sgaunet/bullets/actions/workflows/linter.yml/badge.svg)](https://github.com/sgaunet/bullets/actions/workflows/linter.yml)
+[![coverage](https://github.com/sgaunet/bullets/actions/workflows/coverage.yml/badge.svg)](https://github.com/sgaunet/bullets/actions/workflows/coverage.yml)
+[![tests](https://github.com/sgaunet/bullets/actions/workflows/tests.yml/badge.svg)](https://github.com/sgaunet/bullets/actions/workflows/tests.yml)
+[![vulnerability-scan](https://github.com/sgaunet/bullets/actions/workflows/vulnerability-scan.yml/badge.svg)](https://github.com/sgaunet/bullets/actions/workflows/vulnerability-scan.yml)
+[![Release Build](https://github.com/sgaunet/bullets/actions/workflows/release.yml/badge.svg)](https://github.com/sgaunet/bullets/actions/workflows/release.yml)
+![License](https://img.shields.io/github/license/sgaunet/bullets.svg)
+
 A colorful terminal logger for Go with bullet-style output, inspired by [goreleaser](https://github.com/goreleaser/goreleaser)'s beautiful CLI output.
 
 ## Features
