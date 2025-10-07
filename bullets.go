@@ -11,6 +11,13 @@ import (
 	"time"
 )
 
+const (
+	// Default timing thresholds and intervals.
+	spinnerIntervalDefault = 80 * time.Millisecond
+	spinnerIntervalSlow    = 100 * time.Millisecond
+	stepDurationThreshold  = 10 * time.Second
+)
+
 // Logger represents a logger with configurable level and output.
 type Logger struct {
 	mu                sync.Mutex
@@ -161,34 +168,6 @@ func (l *Logger) WithError(err error) *Logger {
 	return l.WithField("error", err.Error())
 }
 
-// log is the internal logging method.
-func (l *Logger) log(level Level, msg string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if level < l.level {
-		return
-	}
-
-	// Build padding
-	indent := strings.Repeat("  ", l.padding)
-
-	// Format message
-	formatted := formatMessage(level, msg, l.useSpecialBullets, l.customBullets)
-
-	// Add fields if present
-	if len(l.fields) > 0 {
-		var parts []string
-		for k, v := range l.fields {
-			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
-		}
-		formatted += colorize(dim, fmt.Sprintf(" (%s)", strings.Join(parts, ", ")))
-	}
-
-	// Write to output
-	fmt.Fprintf(l.writer, "%s%s\n", indent, formatted)
-}
-
 // Debug logs a debug message.
 func (l *Logger) Debug(msg string) {
 	l.log(DebugLevel, msg)
@@ -282,7 +261,7 @@ func (l *Logger) Step(msg string) func() {
 	return func() {
 		l.DecreasePadding()
 		duration := time.Since(start)
-		if duration > 10*time.Second {
+		if duration > stepDurationThreshold {
 			l.WithField("duration", duration.Round(time.Millisecond)).Success("completed")
 		} else {
 			l.Success("completed")
@@ -300,7 +279,7 @@ func (l *Logger) Spinner(msg string) *Spinner {
 
 	// Default Braille spinner
 	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	return newSpinner(l, msg, frames, color, 80*time.Millisecond)
+	return newSpinner(l, msg, frames, color, spinnerIntervalDefault)
 }
 
 // SpinnerDots creates a spinner with rotating Braille dots pattern.
@@ -311,7 +290,7 @@ func (l *Logger) SpinnerDots(msg string) *Spinner {
 	l.mu.Unlock()
 
 	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	return newSpinner(l, msg, frames, color, 80*time.Millisecond)
+	return newSpinner(l, msg, frames, color, spinnerIntervalDefault)
 }
 
 // SpinnerCircle creates a spinner with growing/shrinking circle pattern.
@@ -322,7 +301,7 @@ func (l *Logger) SpinnerCircle(msg string) *Spinner {
 	l.mu.Unlock()
 
 	frames := []string{"◐", "◓", "◑", "◒"}
-	return newSpinner(l, msg, frames, color, 100*time.Millisecond)
+	return newSpinner(l, msg, frames, color, spinnerIntervalSlow)
 }
 
 // SpinnerBounce creates a spinner with bouncing dot pattern.
@@ -333,7 +312,7 @@ func (l *Logger) SpinnerBounce(msg string) *Spinner {
 	l.mu.Unlock()
 
 	frames := []string{"⠁", "⠂", "⠄", "⡀", "⢀", "⠠", "⠐", "⠈"}
-	return newSpinner(l, msg, frames, color, 80*time.Millisecond)
+	return newSpinner(l, msg, frames, color, spinnerIntervalDefault)
 }
 
 // SpinnerWithFrames creates and starts a spinner with custom animation frames.
@@ -344,5 +323,33 @@ func (l *Logger) SpinnerWithFrames(msg string, frames []string) *Spinner {
 	color := cyan // Default info level color
 	l.mu.Unlock()
 
-	return newSpinner(l, msg, frames, color, 100*time.Millisecond)
+	return newSpinner(l, msg, frames, color, spinnerIntervalSlow)
+}
+
+// log is the internal logging method.
+func (l *Logger) log(level Level, msg string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if level < l.level {
+		return
+	}
+
+	// Build padding
+	indent := strings.Repeat("  ", l.padding)
+
+	// Format message
+	formatted := formatMessage(level, msg, l.useSpecialBullets, l.customBullets)
+
+	// Add fields if present
+	if len(l.fields) > 0 {
+		var parts []string
+		for k, v := range l.fields {
+			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+		}
+		formatted += colorize(dim, fmt.Sprintf(" (%s)", strings.Join(parts, ", ")))
+	}
+
+	// Write to output
+	fmt.Fprintf(l.writer, "%s%s\n", indent, formatted)
 }

@@ -2,12 +2,12 @@ package bullets
 
 import "fmt"
 
-// ANSI color codes for terminal output
+// ANSI color codes for terminal output.
 const (
 	reset = "\033[0m"
 	Reset = reset // Exported version
 
-	// Text colors
+	// Text colors.
 	black   = "\033[30m"
 	red     = "\033[31m"
 	green   = "\033[32m"
@@ -17,7 +17,7 @@ const (
 	cyan    = "\033[36m"
 	white   = "\033[37m"
 
-	// Exported color constants for public use
+	// Exported color constants for public use.
 	ColorBlack   = black
 	ColorRed     = red
 	ColorGreen   = green
@@ -27,7 +27,7 @@ const (
 	ColorCyan    = cyan
 	ColorWhite   = white
 
-	// Bright colors
+	// Bright colors.
 	brightBlack   = "\033[90m"
 	brightRed     = "\033[91m"
 	brightGreen   = "\033[92m"
@@ -37,7 +37,7 @@ const (
 	brightCyan    = "\033[96m"
 	brightWhite   = "\033[97m"
 
-	// Exported bright color constants
+	// Exported bright color constants.
 	ColorBrightBlack   = brightBlack
 	ColorBrightRed     = brightRed
 	ColorBrightGreen   = brightGreen
@@ -47,20 +47,20 @@ const (
 	ColorBrightCyan    = brightCyan
 	ColorBrightWhite   = brightWhite
 
-	// Text styles
+	// Text styles.
 	bold      = "\033[1m"
 	dim       = "\033[2m"
 	italic    = "\033[3m"
 	underline = "\033[4m"
 
-	// Exported style constants
+	// Exported style constants.
 	StyleBold      = bold
 	StyleDim       = dim
 	StyleItalic    = italic
 	StyleUnderline = underline
 )
 
-// Bullet symbols
+// Bullet symbols.
 const (
 	bulletInfo    = "•"
 	bulletSuccess = "✓"
@@ -69,65 +69,72 @@ const (
 	bulletDebug   = "○"
 )
 
-// colorize wraps text in ANSI color codes (internal use)
+// colorize wraps text in ANSI color codes (internal use).
 func colorize(color, text string) string {
 	return color + text + reset
 }
 
-// Colorize wraps text in ANSI color codes (exported for public use)
+// Colorize wraps text in ANSI color codes (exported for public use).
 func Colorize(color, text string) string {
 	return colorize(color, text)
 }
 
-// getBulletStyle returns the colored bullet and color for a given level
+// getBulletStyle returns the colored bullet and color for a given level.
 func getBulletStyle(level Level, useSpecialBullets bool, customBullets map[Level]string) (string, string) {
-	// Priority: custom bullets > special bullets > default circle
-	var bullet string
-	var color string
-
-	// Determine bullet symbol
-	if custom, ok := customBullets[level]; ok {
-		bullet = custom
-	} else if useSpecialBullets {
-		switch level {
-		case DebugLevel:
-			bullet = bulletDebug
-		case InfoLevel:
-			bullet = bulletInfo
-		case WarnLevel:
-			bullet = bulletWarn
-		case ErrorLevel:
-			bullet = bulletError
-		case FatalLevel:
-			bullet = bulletError
-		default:
-			bullet = bulletInfo
-		}
-	} else {
-		// Default: use circle for all levels
-		bullet = bulletInfo
-	}
-
-	// Determine color
-	switch level {
-	case DebugLevel:
-		color = dim
-	case InfoLevel:
-		color = cyan
-	case WarnLevel:
-		color = yellow
-	case ErrorLevel:
-		color = red
-	case FatalLevel:
-		color = brightRed + bold
-	default:
-		color = reset
-	}
-
+	bullet := getBulletSymbol(level, useSpecialBullets, customBullets)
+	color := getColorForLevel(level)
 	return colorize(color, bullet), color
 }
 
-// formatMessage formats a message with the appropriate style for the level
+// getBulletSymbol determines the bullet symbol based on level and configuration.
+func getBulletSymbol(level Level, useSpecialBullets bool, customBullets map[Level]string) string {
+	// Priority: custom bullets > special bullets > default circle
+	if custom, ok := customBullets[level]; ok {
+		return custom
+	}
+
+	if useSpecialBullets {
+		return getSpecialBullet(level)
+	}
+
+	return bulletInfo
+}
+
+// getSpecialBullet returns the special bullet symbol for a level.
+func getSpecialBullet(level Level) string {
+	switch level {
+	case DebugLevel:
+		return bulletDebug
+	case InfoLevel:
+		return bulletInfo
+	case WarnLevel:
+		return bulletWarn
+	case ErrorLevel, FatalLevel:
+		return bulletError
+	default:
+		return bulletInfo
+	}
+}
+
+// getColorForLevel returns the color for a level.
+func getColorForLevel(level Level) string {
+	switch level {
+	case DebugLevel:
+		return dim
+	case InfoLevel:
+		return cyan
+	case WarnLevel:
+		return yellow
+	case ErrorLevel:
+		return red
+	case FatalLevel:
+		return brightRed + bold
+	default:
+		return reset
+	}
+}
+
+// formatMessage formats a message with the appropriate style for the level.
 func formatMessage(level Level, msg string, useSpecialBullets bool, customBullets map[Level]string) string {
 	bullet, _ := getBulletStyle(level, useSpecialBullets, customBullets)
 	return fmt.Sprintf("%s %s", bullet, msg)

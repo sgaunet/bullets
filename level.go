@@ -1,12 +1,15 @@
 package bullets
 
 import (
-	"fmt"
+	"errors"
 	"strings"
 )
 
 // Level represents a log level.
 type Level uint32
+
+// ErrInvalidLevel is returned when parsing an invalid level string.
+var ErrInvalidLevel = errors.New("invalid log level")
 
 const (
 	// DebugLevel is the debug level.
@@ -20,6 +23,15 @@ const (
 	// FatalLevel is the fatal level.
 	FatalLevel
 )
+
+// MustParseLevel parses a level string or panics.
+func MustParseLevel(s string) Level {
+	level, err := ParseLevel(s)
+	if err != nil {
+		panic(err)
+	}
+	return level
+}
 
 // String returns the string representation of the level.
 func (l Level) String() string {
@@ -53,15 +65,6 @@ func ParseLevel(s string) (Level, error) {
 	case "fatal":
 		return FatalLevel, nil
 	default:
-		return InfoLevel, fmt.Errorf("invalid level: %s", s)
+		return InfoLevel, ErrInvalidLevel
 	}
-}
-
-// MustParseLevel parses a level string or panics.
-func MustParseLevel(s string) Level {
-	level, err := ParseLevel(s)
-	if err != nil {
-		panic(err)
-	}
-	return level
 }
