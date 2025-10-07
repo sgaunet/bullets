@@ -24,7 +24,8 @@ type Spinner struct {
 }
 
 // newSpinner creates a new spinner with the given parameters.
-func newSpinner(logger *Logger, msg string, frames []string, color string, interval time.Duration) *Spinner {
+func newSpinner(logger *Logger, msg string, frames []string, _ string, interval time.Duration) *Spinner {
+	color := cyan // Always use cyan for consistency
 	if len(frames) == 0 {
 		frames = []string{bulletInfo, "○"} // Default: full and empty circle
 	}
@@ -45,29 +46,6 @@ func newSpinner(logger *Logger, msg string, frames []string, color string, inter
 	go s.animate()
 
 	return s
-}
-
-// animate runs the spinner animation in a goroutine.
-func (s *Spinner) animate() {
-	ticker := time.NewTicker(s.interval)
-	defer ticker.Stop()
-	defer close(s.doneCh)
-
-	frameIdx := 0
-	indent := strings.Repeat("  ", s.padding)
-
-	for {
-		select {
-		case <-s.stopCh:
-			// Clear the spinner line
-			fmt.Fprintf(s.writer, "\r%s\r", strings.Repeat(" ", 100))
-			return
-		case <-ticker.C:
-			bullet := colorize(s.color, s.frames[frameIdx])
-			fmt.Fprintf(s.writer, "\r%s%s %s", indent, bullet, s.msg)
-			frameIdx = (frameIdx + 1) % len(s.frames)
-		}
-	}
 }
 
 // Stop stops the spinner and clears the line.
@@ -148,12 +126,34 @@ func (s *Spinner) Replace(msg string) {
 	var bullet string
 	if custom, ok := s.logger.customBullets[InfoLevel]; ok {
 		bullet = custom
-	} else if s.logger.useSpecialBullets {
-		bullet = bulletInfo
 	} else {
-		bullet = bulletInfo // Default circle
+		bullet = bulletInfo
 	}
 
 	formatted := fmt.Sprintf("%s %s", colorize(cyan, bullet), msg)
 	fmt.Fprintf(s.writer, "%s%s\n", indent, formatted)
+}
+
+// animate runs the spinner animation in a goroutine.
+func (s *Spinner) animate() {
+	ticker := time.NewTicker(s.interval)
+	defer ticker.Stop()
+	defer close(s.doneCh)
+
+	frameIdx := 0
+	indent := strings.Repeat("  ", s.padding)
+
+	for {
+		select {
+		case <-s.stopCh:
+			// Clear the spinner line
+			const clearWidth = 100
+			fmt.Fprintf(s.writer, "\r%s\r", strings.Repeat(" ", clearWidth))
+			return
+		case <-ticker.C:
+			bullet := colorize(s.color, s.frames[frameIdx])
+			fmt.Fprintf(s.writer, "\r%s%s %s", indent, bullet, s.msg)
+			frameIdx = (frameIdx + 1) % len(s.frames)
+		}
+	}
 }

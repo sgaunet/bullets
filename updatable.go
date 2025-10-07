@@ -9,9 +9,10 @@ import (
 	"golang.org/x/term"
 )
 
-// UpdatableLogger wraps a regular Logger and provides updatable bullet functionality
+// UpdatableLogger wraps a regular Logger and provides updatable bullet functionality.
 type UpdatableLogger struct {
 	*Logger
+
 	mu        sync.RWMutex
 	writeMu   sync.Mutex  // Mutex for terminal write operations
 	handles   []*BulletHandle
@@ -19,7 +20,7 @@ type UpdatableLogger struct {
 	isTTY     bool // Whether output is a terminal
 }
 
-// BulletHandle represents a handle to an updatable bullet
+// BulletHandle represents a handle to an updatable bullet.
 type BulletHandle struct {
 	logger         *UpdatableLogger
 	lineNum        int     // Line number relative to start
@@ -34,7 +35,7 @@ type BulletHandle struct {
 	mu             sync.Mutex
 }
 
-// ANSI escape codes for cursor control
+// ANSI escape codes for cursor control.
 const (
 	ansiSaveCursor    = "\033[s"
 	ansiRestoreCursor = "\033[u"
@@ -44,7 +45,7 @@ const (
 	ansiMoveToCol     = "\033[0G"
 )
 
-// NewUpdatable creates a new updatable logger
+// NewUpdatable creates a new updatable logger.
 func NewUpdatable(w io.Writer) *UpdatableLogger {
 	// Check if output is a terminal
 	isTTY := false
@@ -63,33 +64,99 @@ func NewUpdatable(w io.Writer) *UpdatableLogger {
 	}
 }
 
-// InfoHandle logs an info message and returns a handle for updates
+// InfoHandle logs an info message and returns a handle for updates.
 func (ul *UpdatableLogger) InfoHandle(msg string) *BulletHandle {
 	return ul.logHandle(InfoLevel, msg)
 }
 
-// DebugHandle logs a debug message and returns a handle for updates
+// DebugHandle logs a debug message and returns a handle for updates.
 func (ul *UpdatableLogger) DebugHandle(msg string) *BulletHandle {
 	return ul.logHandle(DebugLevel, msg)
 }
 
-// WarnHandle logs a warning message and returns a handle for updates
+// WarnHandle logs a warning message and returns a handle for updates.
 func (ul *UpdatableLogger) WarnHandle(msg string) *BulletHandle {
 	return ul.logHandle(WarnLevel, msg)
 }
 
-// ErrorHandle logs an error message and returns a handle for updates
+// ErrorHandle logs an error message and returns a handle for updates.
 func (ul *UpdatableLogger) ErrorHandle(msg string) *BulletHandle {
 	return ul.logHandle(ErrorLevel, msg)
 }
 
-// logHandle creates a bullet and returns a handle to it
+// Info logs an info message and increments line count.
+func (ul *UpdatableLogger) Info(msg string) {
+	ul.log(InfoLevel, msg)
+	ul.mu.Lock()
+	ul.lineCount++
+	ul.mu.Unlock()
+}
+
+// Debug logs a debug message and increments line count.
+func (ul *UpdatableLogger) Debug(msg string) {
+	ul.log(DebugLevel, msg)
+	ul.mu.Lock()
+	ul.lineCount++
+	ul.mu.Unlock()
+}
+
+// Warn logs a warning message and increments line count.
+func (ul *UpdatableLogger) Warn(msg string) {
+	ul.log(WarnLevel, msg)
+	ul.mu.Lock()
+	ul.lineCount++
+	ul.mu.Unlock()
+}
+
+// Error logs an error message and increments line count.
+func (ul *UpdatableLogger) Error(msg string) {
+	ul.log(ErrorLevel, msg)
+	ul.mu.Lock()
+	ul.lineCount++
+	ul.mu.Unlock()
+}
+
+// Success logs a success message and increments line count.
+func (ul *UpdatableLogger) Success(msg string) {
+	ul.mu.Lock()
+	defer ul.mu.Unlock()
+
+	if InfoLevel < ul.level {
+		ul.lineCount++
+		return
+	}
+
+	indent := strings.Repeat("  ", ul.padding)
+
+	// Determine bullet symbol for success
+	var bullet string
+	if custom, ok := ul.customBullets[InfoLevel]; ok {
+		bullet = custom
+	} else if ul.useSpecialBullets {
+		bullet = bulletSuccess
+	} else {
+		bullet = bulletInfo
+	}
+
+	formatted := fmt.Sprintf("%s %s", colorize(green, bullet), msg)
+	fmt.Fprintf(ul.writer, "%s%s\n", indent, formatted)
+	ul.lineCount++
+}
+
+// IncrementLineCount increments the line count (called by regular log methods).
+func (ul *UpdatableLogger) IncrementLineCount() {
+	ul.mu.Lock()
+	defer ul.mu.Unlock()
+	ul.lineCount++
+}
+
+// logHandle creates a bullet and returns a handle to it.
 func (ul *UpdatableLogger) logHandle(level Level, msg string) *BulletHandle {
 	ul.mu.Lock()
 	defer ul.mu.Unlock()
 
 	// Log the message normally
-	ul.Logger.log(level, msg)
+	ul.log(level, msg)
 
 	// If not a TTY, return a handle that prints updates as new lines
 	if !ul.isTTY {
@@ -99,7 +166,7 @@ func (ul *UpdatableLogger) logHandle(level Level, msg string) *BulletHandle {
 			level:           level,
 			message:         msg,
 			originalMessage: msg,
-			padding:         ul.Logger.padding,
+			padding:         ul.padding,
 			fields:          make(map[string]interface{}),
 		}
 	}
@@ -111,16 +178,14 @@ func (ul *UpdatableLogger) logHandle(level Level, msg string) *BulletHandle {
 		level:           level,
 		message:         msg,
 		originalMessage: msg,
-		padding:         ul.Logger.padding,
+		padding:         ul.padding,
 		fields:          make(map[string]interface{}),
 	}
 
-	// Copy fields from logger
-	ul.Logger.mu.Lock()
-	for k, v := range ul.Logger.fields {
+	// Copy fields from logger (already have the lock)
+	for k, v := range ul.fields {
 		handle.fields[k] = v
 	}
-	ul.Logger.mu.Unlock()
 
 	ul.handles = append(ul.handles, handle)
 	ul.lineCount++
@@ -128,7 +193,7 @@ func (ul *UpdatableLogger) logHandle(level Level, msg string) *BulletHandle {
 	return handle
 }
 
-// Update updates the bullet with a new message and level
+// Update updates the bullet with a new message and level.
 func (h *BulletHandle) Update(level Level, msg string) *BulletHandle {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -141,12 +206,12 @@ func (h *BulletHandle) Update(level Level, msg string) *BulletHandle {
 		h.redraw()
 	} else if h.lineNum == -1 && !h.logger.isTTY {
 		// Fallback: print as new line when not in TTY mode
-		h.logger.Logger.log(level, msg)
+		h.logger.log(level, msg)
 	}
 	return h
 }
 
-// UpdateMessage updates just the message text
+// UpdateMessage updates just the message text.
 func (h *BulletHandle) UpdateMessage(msg string) *BulletHandle {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -160,7 +225,7 @@ func (h *BulletHandle) UpdateMessage(msg string) *BulletHandle {
 	return h
 }
 
-// UpdateLevel updates just the level (and thus color/bullet)
+// UpdateLevel updates just the level (and thus color/bullet).
 func (h *BulletHandle) UpdateLevel(level Level) *BulletHandle {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -173,7 +238,7 @@ func (h *BulletHandle) UpdateLevel(level Level) *BulletHandle {
 	return h
 }
 
-// Success updates the bullet to show success
+// Success updates the bullet to show success.
 func (h *BulletHandle) Success(msg string) *BulletHandle {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -186,22 +251,22 @@ func (h *BulletHandle) Success(msg string) *BulletHandle {
 		h.redrawSuccess()
 	} else if h.lineNum == -1 && !h.logger.isTTY {
 		// Fallback: print as new success line when not in TTY mode
-		h.logger.Logger.Success(msg)
+		h.logger.Success(msg)
 	}
 	return h
 }
 
-// Error updates the bullet to show an error
+// Error updates the bullet to show an error.
 func (h *BulletHandle) Error(msg string) *BulletHandle {
 	return h.Update(ErrorLevel, msg)
 }
 
-// Warning updates the bullet to show a warning
+// Warning updates the bullet to show a warning.
 func (h *BulletHandle) Warning(msg string) *BulletHandle {
 	return h.Update(WarnLevel, msg)
 }
 
-// WithField adds a field to this bullet
+// WithField adds a field to this bullet.
 func (h *BulletHandle) WithField(key string, value interface{}) *BulletHandle {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -216,7 +281,7 @@ func (h *BulletHandle) WithField(key string, value interface{}) *BulletHandle {
 	return h
 }
 
-// WithFields adds multiple fields to this bullet
+// WithFields adds multiple fields to this bullet.
 func (h *BulletHandle) WithFields(fields map[string]interface{}) *BulletHandle {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -230,8 +295,18 @@ func (h *BulletHandle) WithFields(fields map[string]interface{}) *BulletHandle {
 	return h
 }
 
-// redraw redraws the bullet at its original position
+// redraw redraws the bullet at its original position.
 func (h *BulletHandle) redraw() {
+	h.redrawWithRenderer(h.renderInPlace)
+}
+
+// redrawSuccess redraws the bullet as a success message.
+func (h *BulletHandle) redrawSuccess() {
+	h.redrawWithRenderer(h.renderSuccessInPlace)
+}
+
+// redrawWithRenderer performs the redraw operation with a custom renderer.
+func (h *BulletHandle) redrawWithRenderer(renderer func()) {
 	h.logger.mu.RLock()
 	currentLine := h.logger.lineCount
 	h.logger.mu.RUnlock()
@@ -251,7 +326,7 @@ func (h *BulletHandle) redraw() {
 		fmt.Fprint(h.logger.writer, ansiMoveToCol)
 
 		// Render the updated bullet without newline
-		h.renderInPlace()
+		renderer()
 
 		// Move back down to the last line
 		fmt.Fprintf(h.logger.writer, ansiMoveDown, linesToMoveUp)
@@ -261,60 +336,19 @@ func (h *BulletHandle) redraw() {
 		// Current line, just clear and redraw
 		fmt.Fprint(h.logger.writer, "\r")
 		fmt.Fprint(h.logger.writer, ansiClearLine)
-		h.renderInPlace()
+		renderer()
 	}
 }
 
-// redrawSuccess redraws the bullet as a success message
-func (h *BulletHandle) redrawSuccess() {
-	h.logger.mu.RLock()
-	currentLine := h.logger.lineCount
-	h.logger.mu.RUnlock()
-
-	linesToMoveUp := currentLine - h.lineNum
-
-	// Lock for terminal write operations
-	h.logger.writeMu.Lock()
-	defer h.logger.writeMu.Unlock()
-
-	if linesToMoveUp > 0 {
-		// Move up to the target line
-		fmt.Fprintf(h.logger.writer, ansiMoveUp, linesToMoveUp)
-
-		// Clear the line and move to start of line
-		fmt.Fprint(h.logger.writer, ansiClearLine)
-		fmt.Fprint(h.logger.writer, ansiMoveToCol)
-
-		// Render as success without newline
-		h.renderSuccessInPlace()
-
-		// Move back down to the last line
-		fmt.Fprintf(h.logger.writer, ansiMoveDown, linesToMoveUp)
-		// Move to start of next line
-		fmt.Fprint(h.logger.writer, "\r")
-	} else {
-		// Current line, just clear and redraw
-		fmt.Fprint(h.logger.writer, "\r")
-		fmt.Fprint(h.logger.writer, ansiClearLine)
-		h.renderSuccessInPlace()
-	}
-}
-
-// render outputs the bullet without cursor manipulation (with newline)
-func (h *BulletHandle) render() {
-	h.renderInPlace()
-	fmt.Fprint(h.logger.writer, "\n")
-}
-
-// renderInPlace outputs the bullet without cursor manipulation and without newline
+// renderInPlace outputs the bullet without cursor manipulation and without newline.
 func (h *BulletHandle) renderInPlace() {
 	indent := strings.Repeat("  ", h.padding)
 
 	// Get bullet style
-	h.logger.Logger.mu.Lock()
-	useSpecial := h.logger.Logger.useSpecialBullets
-	customBullets := h.logger.Logger.customBullets
-	h.logger.Logger.mu.Unlock()
+	h.logger.mu.Lock()
+	useSpecial := h.logger.useSpecialBullets
+	customBullets := h.logger.customBullets
+	h.logger.mu.Unlock()
 
 	formatted := formatMessage(h.level, h.message, useSpecial, customBullets)
 
@@ -335,20 +369,14 @@ func (h *BulletHandle) renderInPlace() {
 	fmt.Fprintf(h.logger.writer, "%s%s", indent, formatted)
 }
 
-// renderSuccess outputs the bullet as a success message (with newline)
-func (h *BulletHandle) renderSuccess() {
-	h.renderSuccessInPlace()
-	fmt.Fprint(h.logger.writer, "\n")
-}
-
-// renderSuccessInPlace outputs the bullet as a success message without newline
+// renderSuccessInPlace outputs the bullet as a success message without newline.
 func (h *BulletHandle) renderSuccessInPlace() {
 	indent := strings.Repeat("  ", h.padding)
 
-	h.logger.Logger.mu.Lock()
-	useSpecial := h.logger.Logger.useSpecialBullets
-	customBullets := h.logger.Logger.customBullets
-	h.logger.Logger.mu.Unlock()
+	h.logger.mu.Lock()
+	useSpecial := h.logger.useSpecialBullets
+	customBullets := h.logger.customBullets
+	h.logger.mu.Unlock()
 
 	// Determine bullet symbol for success
 	var bullet string
@@ -374,45 +402,13 @@ func (h *BulletHandle) renderSuccessInPlace() {
 	fmt.Fprintf(h.logger.writer, "%s%s", indent, formatted)
 }
 
-// BatchUpdate allows updating multiple handles at once
-func BatchUpdate(handles []*BulletHandle, updates map[*BulletHandle]struct {
+// BatchUpdate allows updating multiple handles at once.
+// Note: The handles parameter is currently unused but kept for API compatibility.
+func BatchUpdate(_ []*BulletHandle, updates map[*BulletHandle]struct {
 	Level   Level
 	Message string
 }) {
 	for handle, update := range updates {
 		handle.Update(update.Level, update.Message)
 	}
-}
-
-// IncrementLineCount increments the line count (called by regular log methods)
-func (ul *UpdatableLogger) IncrementLineCount() {
-	ul.mu.Lock()
-	defer ul.mu.Unlock()
-	ul.lineCount++
-}
-
-// Override regular logging methods to track line count
-func (ul *UpdatableLogger) Info(msg string) {
-	ul.Logger.Info(msg)
-	ul.IncrementLineCount()
-}
-
-func (ul *UpdatableLogger) Debug(msg string) {
-	ul.Logger.Debug(msg)
-	ul.IncrementLineCount()
-}
-
-func (ul *UpdatableLogger) Warn(msg string) {
-	ul.Logger.Warn(msg)
-	ul.IncrementLineCount()
-}
-
-func (ul *UpdatableLogger) Error(msg string) {
-	ul.Logger.Error(msg)
-	ul.IncrementLineCount()
-}
-
-func (ul *UpdatableLogger) Success(msg string) {
-	ul.Logger.Success(msg)
-	ul.IncrementLineCount()
 }

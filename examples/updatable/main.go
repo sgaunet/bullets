@@ -1,3 +1,4 @@
+// Package main demonstrates updatable bullet functionality with real-time updates.
 package main
 
 import (
@@ -7,6 +8,22 @@ import (
 	"time"
 
 	"github.com/sgaunet/bullets"
+)
+
+const (
+	sleep50ms   = 50 * time.Millisecond
+	sleep75ms   = 75 * time.Millisecond
+	sleep500ms  = 500 * time.Millisecond
+	sleep700ms  = 700 * time.Millisecond
+	sleep800ms  = 800 * time.Millisecond
+	sleep900ms  = 900 * time.Millisecond
+	sleep1      = 1 * time.Second
+	sleep1200ms = 1200 * time.Millisecond
+	sleep1500ms = 1500 * time.Millisecond
+	sleep2      = 2 * time.Second
+
+	numGoroutines    = 3
+	progressBarTotal = 100
 )
 
 func main() {
@@ -53,22 +70,23 @@ func main() {
 
 	var wg sync.WaitGroup
 	// Simulate different download speeds
-	wg.Add(3)
+	wg.Add(numGoroutines)
 	go func() {
 		defer wg.Done()
-		updateDownload(download1, "package-1.tar.gz", 50*time.Millisecond)
+		updateDownload(download1, "package-1.tar.gz", sleep50ms)
 	}()
 	go func() {
 		defer wg.Done()
-		updateDownload(download2, "package-2.tar.gz", 100*time.Millisecond)
+		const sleep100ms = 100 * time.Millisecond
+		updateDownload(download2, "package-2.tar.gz", sleep100ms)
 	}()
 	go func() {
 		defer wg.Done()
-		updateDownload(download3, "package-3.tar.gz", 75*time.Millisecond)
+		updateDownload(download3, "package-3.tar.gz", sleep75ms)
 	}()
 
 	wg.Wait()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(sleep500ms)
 	logger.DecreasePadding()
 	fmt.Println()
 
@@ -87,7 +105,7 @@ func main() {
 	// Create a handle group (not used in this example, but available for batch operations)
 	// testGroup := bullets.NewHandleGroup(tests...)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(sleep2)
 
 	// Update individual tests
 	tests[0].Success("Test passed: auth_test.go ✓")
@@ -109,12 +127,12 @@ func main() {
 		delay  time.Duration
 		status string
 	}{
-		{"Checkout code", nil, 500 * time.Millisecond, "success"},
-		{"Install dependencies", nil, 1 * time.Second, "success"},
-		{"Run linter", nil, 800 * time.Millisecond, "warning"},
-		{"Run tests", nil, 2 * time.Second, "success"},
-		{"Build application", nil, 1500 * time.Millisecond, "success"},
-		{"Deploy to staging", nil, 1 * time.Second, "error"},
+		{"Checkout code", nil, sleep500ms, "success"},
+		{"Install dependencies", nil, sleep1, "success"},
+		{"Run linter", nil, sleep800ms, "warning"},
+		{"Run tests", nil, sleep2, "success"},
+		{"Build application", nil, sleep1500ms, "success"},
+		{"Deploy to staging", nil, sleep1, "error"},
 	}
 
 	// Start all pipeline steps as pending
@@ -133,16 +151,11 @@ func main() {
 			step.handle.Warning(step.name + " ⚠ (with warnings)")
 		case "error":
 			step.handle.Error(step.name + " ✗ (failed)")
-			// Stop pipeline on error
+			// Stop pipeline on error and mark remaining steps as skipped
 			for j := i + 1; j < len(pipeline); j++ {
 				pipeline[j].handle.UpdateColor(bullets.ColorBrightBlack).
 					UpdateMessage(pipeline[j].name + " (skipped)")
 			}
-			break
-		}
-
-		if step.status == "error" {
-			break
 		}
 	}
 
@@ -163,31 +176,31 @@ func main() {
 
 	// Simulate health checks
 	go func() {
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(sleep500ms)
 		services["Database"].Success("Database: Healthy (15ms)")
 	}()
 
 	go func() {
-		time.Sleep(700 * time.Millisecond)
+		time.Sleep(sleep700ms)
 		services["Redis"].Success("Redis: Healthy (8ms)")
 	}()
 
 	go func() {
-		time.Sleep(1200 * time.Millisecond)
+		time.Sleep(sleep1200ms)
 		services["API Gateway"].Warning("API Gateway: Degraded (high latency)")
 	}()
 
 	go func() {
-		time.Sleep(900 * time.Millisecond)
+		time.Sleep(sleep900ms)
 		services["Auth Service"].Success("Auth Service: Healthy (22ms)")
 	}()
 
 	go func() {
-		time.Sleep(1500 * time.Millisecond)
+		time.Sleep(sleep1500ms)
 		services["Message Queue"].Error("Message Queue: Unreachable")
 	}()
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(sleep2)
 
 	logger.DecreasePadding()
 	fmt.Println()
@@ -204,14 +217,14 @@ func main() {
 	// Create a chain for all regions
 	regions := bullets.Chain(usEast, usWest, euWest, apSouth)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(sleep1)
 	regions.WithField("version", "v2.1.0")
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(sleep1)
 	usEast.Success("US-East: Deployed successfully")
 	usWest.Success("US-West: Deployed successfully")
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(sleep500ms)
 	euWest.Success("EU-West: Deployed successfully")
 	apSouth.Success("AP-South: Deployed successfully")
 
@@ -220,11 +233,11 @@ func main() {
 	logger.Success("All examples completed!")
 }
 
-// updateDownload simulates a download with progress updates
+// updateDownload simulates a download with progress updates.
 func updateDownload(handle *bullets.BulletHandle, filename string, speed time.Duration) {
 	// Progress updates will be shown with the original message
-	for i := 0; i <= 100; i += 10 {
-		handle.Progress(i, 100)
+	for i := 0; i <= progressBarTotal; i += 10 {
+		handle.Progress(i, progressBarTotal)
 		time.Sleep(speed)
 	}
 	handle.Success(filename + " downloaded successfully ✓")
