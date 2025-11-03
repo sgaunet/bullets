@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/term"
 )
 
 const (
@@ -27,11 +29,23 @@ type Logger struct {
 	fields            map[string]interface{}
 	useSpecialBullets bool
 	customBullets     map[Level]string
+	activeSpinners    []*Spinner
+	spinnerMu         sync.Mutex
+	writeMu           sync.Mutex
+	coordinator       *SpinnerCoordinator
 }
 
 // New creates a new logger that writes to the given writer.
 func New(w io.Writer) *Logger {
-	return &Logger{
+	// Detect TTY capability for coordinator
+	isTTY := false
+	if os.Getenv("BULLETS_FORCE_TTY") == "1" {
+		isTTY = true
+	} else if f, ok := w.(*os.File); ok {
+		isTTY = term.IsTerminal(int(f.Fd()))
+	}
+
+	l := &Logger{
 		writer:            w,
 		level:             InfoLevel,
 		padding:           0,
@@ -39,6 +53,11 @@ func New(w io.Writer) *Logger {
 		useSpecialBullets: false,
 		customBullets:     make(map[Level]string),
 	}
+
+	// Initialize coordinator with shared write mutex
+	l.coordinator = newSpinnerCoordinator(w, &l.writeMu, isTTY)
+
+	return l
 }
 
 // Default returns a logger that writes to stderr.
@@ -352,4 +371,29 @@ func (l *Logger) log(level Level, msg string) {
 
 	// Write to output
 	fmt.Fprintf(l.writer, "%s%s\n", indent, formatted)
+}
+
+// registerSpinner adds a spinner to the active spinners list and returns its line number.
+func (l *Logger) registerSpinner(s *Spinner) int {
+	l.spinnerMu.Lock()
+	l.activeSpinners = append(l.activeSpinners, s)
+	l.spinnerMu.Unlock()
+
+	// Use coordinator for line allocation and management
+	return l.coordinator.register(s)
+}
+
+// unregisterSpinner removes a spinner from the active spinners list.
+func (l *Logger) unregisterSpinner(s *Spinner) {
+	l.spinnerMu.Lock()
+	for i, spinner := range l.activeSpinners {
+		if spinner == s {
+			l.activeSpinners = append(l.activeSpinners[:i], l.activeSpinners[i+1:]...)
+			break
+		}
+	}
+	l.spinnerMu.Unlock()
+
+	// Use coordinator for cleanup
+	l.coordinator.unregister(s)
 }

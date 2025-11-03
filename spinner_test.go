@@ -213,3 +213,83 @@ func TestSpinnerWithCustomBullet(t *testing.T) {
 		t.Errorf("Expected custom bullet '★' in output, got %q", output)
 	}
 }
+
+func TestMultipleSimultaneousSpinners(t *testing.T) {
+	var buf bytes.Buffer
+	logger := New(&buf)
+
+	// Create multiple spinners
+	spinner1 := logger.SpinnerCircle("task 1")
+	spinner2 := logger.SpinnerCircle("task 2")
+	spinner3 := logger.SpinnerCircle("task 3")
+
+	// Verify they are registered
+	if len(logger.activeSpinners) != 3 {
+		t.Errorf("Expected 3 active spinners, got %d", len(logger.activeSpinners))
+	}
+
+	// Verify line numbers are assigned correctly
+	if spinner1.lineNumber != 0 {
+		t.Errorf("Expected spinner1 lineNumber 0, got %d", spinner1.lineNumber)
+	}
+	if spinner2.lineNumber != 1 {
+		t.Errorf("Expected spinner2 lineNumber 1, got %d", spinner2.lineNumber)
+	}
+	if spinner3.lineNumber != 2 {
+		t.Errorf("Expected spinner3 lineNumber 2, got %d", spinner3.lineNumber)
+	}
+
+	// Let them run for a bit
+	time.Sleep(200 * time.Millisecond)
+
+	// Stop them in different ways
+	spinner1.Success("task 1 complete")
+	spinner2.Error("task 2 failed")
+	spinner3.Replace("task 3 done")
+
+	// Verify they are all unregistered
+	if len(logger.activeSpinners) != 0 {
+		t.Errorf("Expected 0 active spinners after stopping, got %d", len(logger.activeSpinners))
+	}
+
+	output := buf.String()
+
+	// Verify all final messages appear in output
+	if !strings.Contains(output, "task 1 complete") {
+		t.Error("Expected 'task 1 complete' in output")
+	}
+	if !strings.Contains(output, "task 2 failed") {
+		t.Error("Expected 'task 2 failed' in output")
+	}
+	if !strings.Contains(output, "task 3 done") {
+		t.Error("Expected 'task 3 done' in output")
+	}
+}
+
+func TestSpinnerLineNumberUpdate(t *testing.T) {
+	var buf bytes.Buffer
+	logger := New(&buf)
+
+	// Create three spinners
+	spinner1 := logger.SpinnerCircle("task 1")
+	spinner2 := logger.SpinnerCircle("task 2")
+	spinner3 := logger.SpinnerCircle("task 3")
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Stop the middle spinner
+	spinner2.Stop()
+
+	// Verify spinner3's line number was updated
+	if spinner3.lineNumber != 1 {
+		t.Errorf("Expected spinner3 lineNumber to be updated to 1, got %d", spinner3.lineNumber)
+	}
+
+	// Verify only 2 spinners remain
+	if len(logger.activeSpinners) != 2 {
+		t.Errorf("Expected 2 active spinners, got %d", len(logger.activeSpinners))
+	}
+
+	spinner1.Stop()
+	spinner3.Stop()
+}
