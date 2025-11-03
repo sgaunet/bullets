@@ -26,6 +26,10 @@ A colorful terminal logger for Go with bullet-style output, inspired by [gorelea
 - 🧵 Thread-safe operations
 - 🚀 Zero external dependencies (stdlib only)
 
+## Demo
+
+![demo](docs/demo.gif)
+
 ## Installation
 
 ```bash
