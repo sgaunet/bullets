@@ -35,16 +35,6 @@ type BulletHandle struct {
 	mu             sync.Mutex
 }
 
-// ANSI escape codes for cursor control.
-const (
-	ansiSaveCursor    = "\033[s"
-	ansiRestoreCursor = "\033[u"
-	ansiClearLine     = "\033[2K"
-	ansiMoveUp        = "\033[%dA"
-	ansiMoveDown      = "\033[%dB"
-	ansiMoveToCol     = "\033[0G"
-)
-
 // NewUpdatable creates a new updatable logger.
 func NewUpdatable(w io.Writer) *UpdatableLogger {
 	// Check if output is a terminal

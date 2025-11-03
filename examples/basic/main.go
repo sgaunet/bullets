@@ -97,8 +97,10 @@ func main() {
 
 	// Circle spinner with error
 	spinner = logger.SpinnerCircle("connecting to database")
+	spinner2 := logger.SpinnerCircle("connecting to database2")
 	time.Sleep(sleep2)
 	spinner.Error("connection failed")
+	spinner2.Success("connection OK")
 
 	// Bounce spinner with custom completion
 	spinner = logger.SpinnerBounce("processing data")
