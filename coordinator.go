@@ -333,12 +333,12 @@ func (c *SpinnerCoordinator) renderCompletion(_ *Spinner, state *spinnerState, m
 			fmt.Fprintf(c.writer, ansiMoveUp, linesToMove)
 		}
 
-		// Clear line, write completion message
-		fmt.Fprintf(c.writer, "%s%s%s%s\n", ansiClearLine, ansiMoveToCol, indent, formatted)
+		// Clear line, write completion message (no newline to avoid buffer modification)
+		fmt.Fprintf(c.writer, "%s%s%s%s", ansiClearLine, ansiMoveToCol, indent, formatted)
 
-		if linesToMove > 1 {
-			// Move cursor back down (adjusted for the newline we just printed)
-			fmt.Fprintf(c.writer, ansiMoveDown, linesToMove-1)
+		if linesToMove > 0 {
+			// Move cursor back down to original position
+			fmt.Fprintf(c.writer, ansiMoveDown, linesToMove)
 		}
 	} else {
 		// Non-TTY mode: just print the completion message as a new line
