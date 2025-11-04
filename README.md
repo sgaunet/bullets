@@ -146,6 +146,51 @@ spinner = logger.SpinnerWithFrames("compiling", []string{"⣾", "⣽", "⣻", "�
 spinner.Stop() // or spinner.Success(), spinner.Error(), spinner.Replace()
 ```
 
+#### Concurrent Spinners
+
+Multiple spinners can run simultaneously with automatic coordination:
+
+```go
+logger := bullets.New(os.Stdout)
+
+// Start multiple operations in parallel
+dbSpinner := logger.SpinnerCircle("Connecting to database")
+apiSpinner := logger.SpinnerDots("Fetching API data")
+fileSpinner := logger.SpinnerBounce("Processing files")
+
+// Each spinner operates independently
+go func() {
+    time.Sleep(2 * time.Second)
+    dbSpinner.Success("Database connected")
+}()
+
+go func() {
+    time.Sleep(3 * time.Second)
+    apiSpinner.Success("API data fetched")
+}()
+
+go func() {
+    time.Sleep(1 * time.Second)
+    fileSpinner.Error("File processing failed")
+}()
+
+time.Sleep(4 * time.Second)
+```
+
+**Features:**
+- **Automatic Coordination**: SpinnerCoordinator manages all active spinners
+- **Thread-Safe**: Safe to start/stop spinners from multiple goroutines
+- **Smart Line Management**: Each spinner gets its own line in TTY mode
+- **No Timing Issues**: Central animation loop prevents flickering/conflicts
+- **Graceful Degradation**: Falls back to simple logging in non-TTY environments
+
+**How It Works:**
+- All spinners share a single coordinator instance
+- Coordinator uses a central ticker (80ms) for smooth animations
+- Channel-based communication ensures thread safety
+- Line numbers automatically recalculated when spinners complete
+- Set `BULLETS_FORCE_TTY=1` for reliable TTY detection in `go run`
+
 ### Updatable Bullets
 
 Create bullets that can be updated after rendering - perfect for showing progress, updating status, and creating dynamic terminal UIs.
@@ -304,6 +349,13 @@ cd examples/basic
 go run main.go
 ```
 
+**Spinner example (including concurrent spinners):**
+```bash
+# Recommended: Set environment variable for proper TTY detection
+export BULLETS_FORCE_TTY=1
+go run examples/spinner/main.go
+```
+
 **Updatable bullets example:**
 ```bash
 # REQUIRED: Set this environment variable for the updates to work properly
@@ -311,12 +363,15 @@ export BULLETS_FORCE_TTY=1
 go run examples/updatable/main.go
 ```
 
-**Note:** The updatable feature uses ANSI escape codes to update lines in place. You MUST:
+**Note:** The spinner and updatable features use ANSI escape codes to update lines in place. For best results:
 1. Run in a terminal that supports ANSI codes (most modern terminals)
 2. Set `BULLETS_FORCE_TTY=1` environment variable
 3. Run directly in the terminal (not through pipes or output redirection)
 
-This demonstrates all updatable features including status updates, progress tracking, batch operations, and parallel operations.
+These examples demonstrate:
+- **basic**: Simple logging with bullets and indentation
+- **spinner**: Animated spinners including concurrent multi-spinner usage
+- **updatable**: Status updates, progress tracking, batch operations, and parallel operations
 
 ## API Reference
 
