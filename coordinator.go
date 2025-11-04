@@ -26,6 +26,7 @@ type spinnerUpdate struct {
 	finalMessage string
 	finalColor   string
 	finalBullet  string
+	doneCh       chan struct{} // Channel to signal completion rendering is done
 }
 
 // spinnerState tracks the internal state of a spinner in the coordinator.
@@ -162,20 +163,30 @@ func (c *SpinnerCoordinator) recalculateLineNumbers() {
 	// Reassign line numbers
 	for i, item := range spinnerList {
 		item.state.lineNumber = i
+		// Lock spinner to safely update lineNumber (prevents race with newSpinner)
+		item.spinner.mu.Lock()
 		item.spinner.lineNumber = i
+		item.spinner.mu.Unlock()
 	}
 
 	c.nextLine = len(spinnerList)
 }
 
 // sendUpdate sends an update to the coordinator's update channel.
-// This is non-blocking; if the channel is full, the update is dropped.
+// Completion updates are blocking to ensure they're processed.
+// Frame updates are non-blocking and can be dropped if channel is full.
 func (c *SpinnerCoordinator) sendUpdate(update spinnerUpdate) {
-	select {
-	case c.updateCh <- update:
-		// Update sent successfully
-	default:
-		// Channel full, drop update (animation frames are ephemeral)
+	if update.updateType == updateComplete {
+		// Completion updates are critical - block until sent
+		c.updateCh <- update
+	} else {
+		// Frame/message updates are ephemeral - drop if channel full
+		select {
+		case c.updateCh <- update:
+			// Update sent successfully
+		default:
+			// Channel full, drop update
+		}
 	}
 }
 
@@ -207,18 +218,19 @@ func (c *SpinnerCoordinator) handleUpdate(update spinnerUpdate) {
 	state, exists := c.spinners[update.spinner]
 	if !exists || state.stopped {
 		c.mu.Unlock()
+		// Signal done even if spinner doesn't exist to prevent deadlock
+		if update.doneCh != nil {
+			close(update.doneCh)
+		}
 		return
 	}
 
 	switch update.updateType {
 	case updateFrame:
+		// Frame updates are now handled by the central animation ticker
+		// Individual spinners don't send frame updates in TTY mode
 		state.currentFrame = update.frameIdx
-		if c.isTTY {
-			c.mu.Unlock()
-			c.renderSpinnerLine(update.spinner, state)
-		} else {
-			c.mu.Unlock()
-		}
+		c.mu.Unlock()
 
 	case updateMessage:
 		state.message = update.message
@@ -228,37 +240,60 @@ func (c *SpinnerCoordinator) handleUpdate(update spinnerUpdate) {
 		state.stopped = true
 		c.mu.Unlock()
 		c.renderCompletion(update.spinner, state, update.finalMessage, update.finalColor, update.finalBullet)
+		// Signal that rendering is complete
+		if update.doneCh != nil {
+			close(update.doneCh)
+		}
 	}
 }
 
 // updateAnimations advances animation frames for all active spinners in TTY mode.
 func (c *SpinnerCoordinator) updateAnimations() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
-	for spinner, state := range c.spinners {
+	// Collect rendering data while holding lock
+	type renderData struct {
+		lineNumber   int
+		padding      int
+		frame        string
+		color        string
+		message      string
+	}
+	toRender := make([]renderData, 0, len(c.spinners))
+
+	for _, state := range c.spinners {
 		if !state.stopped {
 			state.currentFrame = (state.currentFrame + 1) % len(state.frames)
-			go c.renderSpinnerLine(spinner, state)
+			toRender = append(toRender, renderData{
+				lineNumber: state.lineNumber,
+				padding:    state.padding,
+				frame:      state.frames[state.currentFrame],
+				color:      state.color,
+				message:    state.message,
+			})
 		}
+	}
+	c.mu.Unlock()
+
+	// Render all spinners without holding the coordinator lock
+	for _, data := range toRender {
+		c.renderSpinnerFrame(data.lineNumber, data.padding, data.frame, data.color, data.message)
 	}
 }
 
-// renderSpinnerLine renders a spinner's current frame to its allocated line (TTY mode).
-func (c *SpinnerCoordinator) renderSpinnerLine(spinner *Spinner, state *spinnerState) {
+// renderSpinnerFrame renders a single spinner frame (helper for updateAnimations).
+func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, color, message string) {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
-	indent := strings.Repeat("  ", state.padding)
-	frame := state.frames[state.currentFrame]
-	bullet := colorize(state.color, frame)
-	content := fmt.Sprintf("%s%s %s", indent, bullet, state.message)
+	indent := strings.Repeat("  ", padding)
+	bullet := colorize(color, frame)
+	content := fmt.Sprintf("%s%s %s", indent, bullet, message)
 
 	// Calculate how many lines to move up
-	linesToMove := state.lineNumber + 1
+	linesToMove := lineNumber + 1
 
 	if linesToMove > 0 {
-		// Move cursor up to the spinner's line
 		fmt.Fprintf(c.writer, ansiMoveUp, linesToMove)
 	}
 
@@ -266,10 +301,10 @@ func (c *SpinnerCoordinator) renderSpinnerLine(spinner *Spinner, state *spinnerS
 	fmt.Fprintf(c.writer, "%s%s%s", ansiClearLine, ansiMoveToCol, content)
 
 	if linesToMove > 0 {
-		// Move cursor back down to the bottom
 		fmt.Fprintf(c.writer, ansiMoveDown, linesToMove)
 	}
 }
+
 
 // renderCompletion renders the final completion message for a spinner.
 func (c *SpinnerCoordinator) renderCompletion(spinner *Spinner, state *spinnerState, message, color, bullet string) {
@@ -287,12 +322,13 @@ func (c *SpinnerCoordinator) renderCompletion(spinner *Spinner, state *spinnerSt
 			fmt.Fprintf(c.writer, ansiMoveUp, linesToMove)
 		}
 
-		fmt.Fprintf(c.writer, "%s%s%s%s", ansiClearLine, ansiMoveToCol, indent, formatted)
+		// Clear line, write completion message
+		fmt.Fprintf(c.writer, "%s%s%s%s\n", ansiClearLine, ansiMoveToCol, indent, formatted)
 
-		if linesToMove > 0 {
-			fmt.Fprintf(c.writer, ansiMoveDown, linesToMove)
+		if linesToMove > 1 {
+			// Move cursor back down (adjusted for the newline we just printed)
+			fmt.Fprintf(c.writer, ansiMoveDown, linesToMove-1)
 		}
-		fmt.Fprintln(c.writer)
 	} else {
 		// Non-TTY mode: just print the completion message as a new line
 		fmt.Fprintf(c.writer, "%s%s\n", indent, formatted)
