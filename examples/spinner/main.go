@@ -26,7 +26,7 @@ func main() {
 	logger.Success("All demos completed")
 }
 
-// demoBasicConcurrent demonstrates multiple spinners running concurrently
+// demoBasicConcurrent demonstrates multiple spinners running concurrently.
 func demoBasicConcurrent(logger *bullets.Logger) {
 	logger.Info("Demo: Concurrent operations with different outcomes")
 	logger.IncreasePadding()
@@ -39,19 +39,19 @@ func demoBasicConcurrent(logger *bullets.Logger) {
 
 	// Use WaitGroup to coordinate goroutines
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(4) //nolint:mnd // Demo code: number of concurrent operations
 
 	// Simulate database connection (completes successfully after 2s)
 	go func() {
 		defer wg.Done()
-		time.Sleep(2 * time.Second)
+		time.Sleep(2 * time.Second) //nolint:mnd // Demo timing
 		dbSpinner.Success("Database connected")
 	}()
 
 	// Simulate API fetch (completes successfully after 3s)
 	go func() {
 		defer wg.Done()
-		time.Sleep(3 * time.Second)
+		time.Sleep(3 * time.Second) //nolint:mnd // Demo timing
 		apiSpinner.Success("API data fetched (1.2MB)")
 	}()
 
@@ -65,7 +65,7 @@ func demoBasicConcurrent(logger *bullets.Logger) {
 	// Simulate cache warming (completes with custom message after 1.5s)
 	go func() {
 		defer wg.Done()
-		time.Sleep(1500 * time.Millisecond)
+		time.Sleep(1500 * time.Millisecond) //nolint:mnd // Demo timing
 		cacheSpinner.Replace("Cache warmed: 1000 entries loaded")
 	}()
 

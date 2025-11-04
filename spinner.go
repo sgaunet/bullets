@@ -103,21 +103,6 @@ func newSpinner(logger *Logger, msg string, frames []string, _ string, interval 
 	return s
 }
 
-// stopAnimation stops the spinner animation goroutine without unregistering.
-func (s *Spinner) stopAnimation() {
-	s.mu.Lock()
-	if s.stopped {
-		s.mu.Unlock()
-		return
-	}
-
-	s.stopped = true
-	close(s.stopCh)
-	s.mu.Unlock()
-
-	<-s.doneCh // Wait for animation to finish
-}
-
 // Stop stops the spinner and clears the line without displaying a completion message.
 //
 // This method immediately halts the animation and unregisters the spinner from the
@@ -147,9 +132,6 @@ func (s *Spinner) Stop() {
 //
 // Thread-safe: Can be called from any goroutine.
 func (s *Spinner) Success(msg string) {
-	// Stop animation but don't unregister yet
-	s.stopAnimation()
-
 	s.logger.mu.Lock()
 	// Determine bullet symbol for success
 	var bullet string
@@ -162,33 +144,7 @@ func (s *Spinner) Success(msg string) {
 	}
 	s.logger.mu.Unlock()
 
-	// Use coordinator's TTY detection for consistency
-	if s.logger.coordinator.isTTY {
-		// TTY mode: Send completion to coordinator (while still registered)
-		// Don't unregister to maintain stable line positions for other spinners
-		doneCh := make(chan struct{})
-		s.logger.coordinator.sendUpdate(spinnerUpdate{
-			spinner:      s,
-			updateType:   updateComplete,
-			finalMessage: msg,
-			finalColor:   green,
-			finalBullet:  bullet,
-			doneCh:       doneCh,
-		})
-		// Wait for rendering to complete before returning
-		<-doneCh
-	} else {
-		// Non-TTY mode: Print completion message as new line, then unregister
-		indent := strings.Repeat("  ", s.padding)
-		formatted := fmt.Sprintf("%s %s", colorize(green, bullet), msg)
-
-		s.logger.writeMu.Lock()
-		fmt.Fprintf(s.writer, "%s%s\n", indent, formatted)
-		s.logger.writeMu.Unlock()
-
-		// Unregister in non-TTY mode since we don't need to maintain line positions
-		s.logger.unregisterSpinner(s)
-	}
+	s.completeSpinner(msg, green, bullet)
 }
 
 // Error stops the spinner and replaces it with an error message.
@@ -207,9 +163,6 @@ func (s *Spinner) Success(msg string) {
 //
 // Thread-safe: Can be called from any goroutine.
 func (s *Spinner) Error(msg string) {
-	// Stop animation but don't unregister yet
-	s.stopAnimation()
-
 	s.logger.mu.Lock()
 	// Determine bullet symbol for error
 	var bullet string
@@ -222,33 +175,7 @@ func (s *Spinner) Error(msg string) {
 	}
 	s.logger.mu.Unlock()
 
-	// Use coordinator's TTY detection for consistency
-	if s.logger.coordinator.isTTY {
-		// TTY mode: Send completion to coordinator (while still registered)
-		// Don't unregister to maintain stable line positions for other spinners
-		doneCh := make(chan struct{})
-		s.logger.coordinator.sendUpdate(spinnerUpdate{
-			spinner:      s,
-			updateType:   updateComplete,
-			finalMessage: msg,
-			finalColor:   red,
-			finalBullet:  bullet,
-			doneCh:       doneCh,
-		})
-		// Wait for rendering to complete before returning
-		<-doneCh
-	} else {
-		// Non-TTY mode: Print completion message as new line, then unregister
-		indent := strings.Repeat("  ", s.padding)
-		formatted := fmt.Sprintf("%s %s", colorize(red, bullet), msg)
-
-		s.logger.writeMu.Lock()
-		fmt.Fprintf(s.writer, "%s%s\n", indent, formatted)
-		s.logger.writeMu.Unlock()
-
-		// Unregister in non-TTY mode since we don't need to maintain line positions
-		s.logger.unregisterSpinner(s)
-	}
+	s.completeSpinner(msg, red, bullet)
 }
 
 // Fail is an alias for Error.
@@ -275,9 +202,6 @@ func (s *Spinner) Fail(msg string) {
 //
 // Thread-safe: Can be called from any goroutine.
 func (s *Spinner) Replace(msg string) {
-	// Stop animation but don't unregister yet
-	s.stopAnimation()
-
 	s.logger.mu.Lock()
 	// Determine bullet symbol for info
 	var bullet string
@@ -288,6 +212,30 @@ func (s *Spinner) Replace(msg string) {
 	}
 	s.logger.mu.Unlock()
 
+	s.completeSpinner(msg, cyan, bullet)
+}
+
+// stopAnimation stops the spinner animation goroutine without unregistering.
+func (s *Spinner) stopAnimation() {
+	s.mu.Lock()
+	if s.stopped {
+		s.mu.Unlock()
+		return
+	}
+
+	s.stopped = true
+	close(s.stopCh)
+	s.mu.Unlock()
+
+	<-s.doneCh // Wait for animation to finish
+}
+
+// completeSpinner is a helper method that handles spinner completion logic.
+// It stops the animation and renders the completion message with the specified color and bullet.
+func (s *Spinner) completeSpinner(msg, color, bullet string) {
+	// Stop animation but don't unregister yet
+	s.stopAnimation()
+
 	// Use coordinator's TTY detection for consistency
 	if s.logger.coordinator.isTTY {
 		// TTY mode: Send completion to coordinator (while still registered)
@@ -297,7 +245,7 @@ func (s *Spinner) Replace(msg string) {
 			spinner:      s,
 			updateType:   updateComplete,
 			finalMessage: msg,
-			finalColor:   cyan,
+			finalColor:   color,
 			finalBullet:  bullet,
 			doneCh:       doneCh,
 		})
@@ -306,7 +254,7 @@ func (s *Spinner) Replace(msg string) {
 	} else {
 		// Non-TTY mode: Print completion message as new line, then unregister
 		indent := strings.Repeat("  ", s.padding)
-		formatted := fmt.Sprintf("%s %s", colorize(cyan, bullet), msg)
+		formatted := fmt.Sprintf("%s %s", colorize(color, bullet), msg)
 
 		s.logger.writeMu.Lock()
 		fmt.Fprintf(s.writer, "%s%s\n", indent, formatted)
