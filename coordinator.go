@@ -143,8 +143,15 @@ func (c *SpinnerCoordinator) unregister(s *Spinner) {
 		state.stopped = true
 		delete(c.spinners, s)
 
-		// Always recalculate line numbers to maintain correct ordering
-		c.recalculateLineNumbers()
+		// DO NOT recalculate line numbers in TTY mode!
+		// Spinners must maintain their original line positions even after others complete.
+		// Recalculating causes remaining spinners to shift and overwrite completion messages.
+		// Line positions are fixed from creation - only the stopped flag changes.
+		//
+		// In non-TTY mode, recalculation doesn't matter since there's no cursor positioning.
+		if !c.isTTY {
+			c.recalculateLineNumbers()
+		}
 	}
 }
 

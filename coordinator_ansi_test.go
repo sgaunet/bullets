@@ -283,7 +283,8 @@ func TestLineNumberDriftAfterCompletion(t *testing.T) {
 	// Complete middle spinner (spinner2 at line 1)
 	spinner2.Success("Task 2 complete")
 
-	// After completion, spinner3 should be recalculated to line 1
+	// After completion, spinner3 should MAINTAIN its original line number (line 2)
+	// This is the fix: spinners no longer shift to fill gaps
 	time.Sleep(50 * time.Millisecond)
 
 	logger.coordinator.mu.Lock()
@@ -292,34 +293,34 @@ func TestLineNumberDriftAfterCompletion(t *testing.T) {
 
 	t.Logf("Spinner3 line number: before=%d, after=%d", lineBeforeCompletion, lineAfterCompletion)
 
-	// Check if recalculation happened
-	if lineAfterCompletion != lineBeforeCompletion-1 {
-		t.Errorf("Expected spinner3 to move from line %d to line %d, but got line %d",
-			lineBeforeCompletion, lineBeforeCompletion-1, lineAfterCompletion)
+	// Check that line number stayed the same (no recalculation in TTY mode)
+	if lineAfterCompletion != lineBeforeCompletion {
+		t.Errorf("Expected spinner3 to maintain line %d, but shifted to line %d",
+			lineBeforeCompletion, lineAfterCompletion)
 	}
 
 	// Now check ANSI sequences for spinner3's next frame
-	// It should use the NEW line number (lineAfterCompletion)
+	// It should continue using its ORIGINAL line number (lineBeforeCompletion)
 	time.Sleep(100 * time.Millisecond) // Wait for at least one animation frame
 
 	events := capture.getEvents()
 
 	// Look for moveUp events after the completion
-	// We expect to see moveUp with value = lineAfterCompletion + 1
-	expectedMoveUp := lineAfterCompletion + 1
+	// We expect spinner3 to keep using its original line position
+	expectedMoveUp := lineBeforeCompletion + 1  // Should be 3 (line 2 + 1)
 	foundCorrectMoveUp := false
 
 	for _, event := range events {
 		if event.eventType == "moveUp" && event.value == expectedMoveUp {
 			foundCorrectMoveUp = true
-			t.Logf("Found correct moveUp(%d) after recalculation", expectedMoveUp)
+			t.Logf("Found correct moveUp(%d) - spinner3 maintains original position", expectedMoveUp)
 			break
 		}
 	}
 
 	if !foundCorrectMoveUp {
 		t.Logf("Warning: Did not find expected moveUp(%d) in ANSI sequence", expectedMoveUp)
-		t.Logf("This might indicate the race condition where spinner3 uses stale line numbers")
+		t.Logf("Spinner3 should maintain its original line position after spinner2 completes")
 	}
 
 	spinner1.Stop()
