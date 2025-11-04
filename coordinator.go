@@ -13,6 +13,10 @@ const (
 	spinnerUpdateChannelSize = 100
 	// spinnerAnimationInterval defines the default animation interval in milliseconds.
 	spinnerAnimationInterval = 80
+	// cleanupPhaseInterval defines how often to run the cleanup phase (in milliseconds).
+	cleanupPhaseInterval = 5000 // 5 seconds
+	// reservedLineTimeout defines how long reserved lines are kept before reclaiming (in milliseconds).
+	reservedLineTimeout = 3000 // 3 seconds
 )
 
 // updateType defines the type of spinner update.
@@ -68,29 +72,42 @@ type spinnerState struct {
 // All coordinator methods are thread-safe and can be called from multiple
 // goroutines. Internal state is protected by mutexes and channel synchronization.
 type SpinnerCoordinator struct {
-	mu        sync.Mutex
-	spinners  map[*Spinner]*spinnerState
-	updateCh  chan spinnerUpdate
-	doneCh    chan struct{}
-	isTTY     bool
-	writer    io.Writer
-	writeMu   *sync.Mutex // Shared write mutex from Logger
-	nextLine  int
-	running   bool
-	startOnce sync.Once
+	mu          sync.Mutex
+	spinners    map[*Spinner]*spinnerState
+	updateCh    chan spinnerUpdate
+	doneCh      chan struct{}
+	isTTY       bool
+	writer      io.Writer
+	writeMu     *sync.Mutex // Shared write mutex from Logger
+	nextLine    int         // Deprecated: use lineTracker instead
+	running     bool
+	startOnce   sync.Once
+	lineTracker *lineTracker           // New line tracking system
+	ledger      *linePositionLedger    // Audit trail for line operations
 }
+
+const (
+	// maxLedgerHistory defines the maximum number of operations to keep in the ledger history.
+	maxLedgerHistory = 1000
+)
 
 // newSpinnerCoordinator creates a new spinner coordinator.
 func newSpinnerCoordinator(writer io.Writer, writeMu *sync.Mutex, isTTY bool) *SpinnerCoordinator {
+	cleanupInterval := time.Duration(reservedLineTimeout) * time.Millisecond
+	tracker := newLineTracker(isTTY, cleanupInterval)
+	ledger := newLinePositionLedger(tracker, maxLedgerHistory) // Keep last N operations
+
 	return &SpinnerCoordinator{
-		spinners: make(map[*Spinner]*spinnerState),
-		updateCh: make(chan spinnerUpdate, spinnerUpdateChannelSize), // Buffered channel to prevent blocking
-		doneCh:   make(chan struct{}),
-		writer:   writer,
-		writeMu:  writeMu,
-		isTTY:    isTTY,
-		nextLine: 0,
-		running:  false,
+		spinners:    make(map[*Spinner]*spinnerState),
+		updateCh:    make(chan spinnerUpdate, spinnerUpdateChannelSize), // Buffered channel to prevent blocking
+		doneCh:      make(chan struct{}),
+		writer:      writer,
+		writeMu:     writeMu,
+		isTTY:       isTTY,
+		nextLine:    0,
+		running:     false,
+		lineTracker: tracker,
+		ledger:      ledger,
 	}
 }
 
@@ -114,11 +131,12 @@ func (c *SpinnerCoordinator) start() {
 func (c *SpinnerCoordinator) register(s *Spinner) int {
 	c.start() // Ensure coordinator is running
 
+	// Allocate line using the line tracker
+	lineNum := c.lineTracker.allocateLine(s)
+	c.ledger.recordAllocation(s, lineNum)
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	lineNum := c.nextLine
-	c.nextLine++ // Always allocate line numbers for tracking
 
 	c.spinners[s] = &spinnerState{
 		lineNumber:   lineNum,
@@ -137,58 +155,22 @@ func (c *SpinnerCoordinator) register(s *Spinner) int {
 // unregister removes a spinner from the coordinator.
 func (c *SpinnerCoordinator) unregister(s *Spinner) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if state, exists := c.spinners[s]; exists {
+	state, exists := c.spinners[s]
+	if exists {
 		state.stopped = true
+		lineNum := state.lineNumber
 		delete(c.spinners, s)
+		c.mu.Unlock()
 
-		// DO NOT recalculate line numbers in TTY mode!
-		// Spinners must maintain their original line positions even after others complete.
-		// Recalculating causes remaining spinners to shift and overwrite completion messages.
-		// Line positions are fixed from creation - only the stopped flag changes.
-		//
-		// In non-TTY mode, recalculation doesn't matter since there's no cursor positioning.
-		if !c.isTTY {
-			c.recalculateLineNumbers()
-		}
+		// Deallocate line using the line tracker
+		// This marks the line as reserved (TTY mode) or available (non-TTY mode)
+		c.lineTracker.deallocateLine(s)
+		c.ledger.recordDeallocation(s, lineNum)
+	} else {
+		c.mu.Unlock()
 	}
 }
 
-// recalculateLineNumbers reassigns line numbers after a spinner is removed.
-// Must be called with c.mu locked.
-func (c *SpinnerCoordinator) recalculateLineNumbers() {
-	// Build sorted list of spinners by creation time
-	type spinnerWithState struct {
-		spinner *Spinner
-		state   *spinnerState
-	}
-
-	spinnerList := make([]spinnerWithState, 0, len(c.spinners))
-	for spinner, state := range c.spinners {
-		spinnerList = append(spinnerList, spinnerWithState{spinner, state})
-	}
-
-	// Sort by creation time (earlier created = lower line number)
-	for i := 0; i < len(spinnerList); i++ {
-		for j := i + 1; j < len(spinnerList); j++ {
-			if spinnerList[i].state.createdAt.After(spinnerList[j].state.createdAt) {
-				spinnerList[i], spinnerList[j] = spinnerList[j], spinnerList[i]
-			}
-		}
-	}
-
-	// Reassign line numbers
-	for i, item := range spinnerList {
-		item.state.lineNumber = i
-		// Lock spinner to safely update lineNumber (prevents race with newSpinner)
-		item.spinner.mu.Lock()
-		item.spinner.lineNumber = i
-		item.spinner.mu.Unlock()
-	}
-
-	c.nextLine = len(spinnerList)
-}
 
 // sendUpdate sends an update to the coordinator's update channel.
 // Completion updates are blocking to ensure they're processed.
@@ -210,8 +192,10 @@ func (c *SpinnerCoordinator) sendUpdate(update spinnerUpdate) {
 
 // processUpdates is the main coordinator goroutine that processes spinner updates.
 func (c *SpinnerCoordinator) processUpdates() {
-	ticker := time.NewTicker(spinnerAnimationInterval * time.Millisecond) // Default animation interval
-	defer ticker.Stop()
+	animationTicker := time.NewTicker(spinnerAnimationInterval * time.Millisecond) // Animation interval
+	cleanupTicker := time.NewTicker(cleanupPhaseInterval * time.Millisecond)       // Cleanup phase interval
+	defer animationTicker.Stop()
+	defer cleanupTicker.Stop()
 
 	for {
 		select {
@@ -221,10 +205,17 @@ func (c *SpinnerCoordinator) processUpdates() {
 		case update := <-c.updateCh:
 			c.handleUpdate(update)
 
-		case <-ticker.C:
+		case <-animationTicker.C:
 			// Periodic tick for animations in TTY mode
 			if c.isTTY {
 				c.updateAnimations()
+			}
+
+		case <-cleanupTicker.C:
+			// Cleanup phase: reclaim reserved lines
+			reclaimed := c.lineTracker.reclaimReservedLines()
+			if reclaimed > 0 {
+				c.ledger.recordReclaim(reclaimed)
 			}
 		}
 	}
@@ -267,6 +258,14 @@ func (c *SpinnerCoordinator) handleUpdate(update spinnerUpdate) {
 
 // updateAnimations advances animation frames for all active spinners in TTY mode.
 func (c *SpinnerCoordinator) updateAnimations() {
+	// Validate line positions before rendering
+	invalid := c.lineTracker.validateLinePositions()
+	if len(invalid) > 0 {
+		c.ledger.recordValidation(len(invalid))
+		// Log validation issues but continue rendering
+		// In production, invalid spinners would be corrected here
+	}
+
 	c.mu.Lock()
 
 	// Collect rendering data while holding lock
