@@ -8,6 +8,13 @@ import (
 	"time"
 )
 
+const (
+	// spinnerUpdateChannelSize defines the buffer size for the spinner update channel.
+	spinnerUpdateChannelSize = 100
+	// spinnerAnimationInterval defines the default animation interval in milliseconds.
+	spinnerAnimationInterval = 80
+)
+
 // updateType defines the type of spinner update.
 type updateType int
 
@@ -77,7 +84,7 @@ type SpinnerCoordinator struct {
 func newSpinnerCoordinator(writer io.Writer, writeMu *sync.Mutex, isTTY bool) *SpinnerCoordinator {
 	return &SpinnerCoordinator{
 		spinners: make(map[*Spinner]*spinnerState),
-		updateCh: make(chan spinnerUpdate, 100), // Buffered channel to prevent blocking
+		updateCh: make(chan spinnerUpdate, spinnerUpdateChannelSize), // Buffered channel to prevent blocking
 		doneCh:   make(chan struct{}),
 		writer:   writer,
 		writeMu:  writeMu,
@@ -101,19 +108,6 @@ func (c *SpinnerCoordinator) start() {
 
 		go c.processUpdates()
 	})
-}
-
-// stop gracefully shuts down the coordinator.
-func (c *SpinnerCoordinator) stop() {
-	c.mu.Lock()
-	if !c.running {
-		c.mu.Unlock()
-		return
-	}
-	c.running = false
-	c.mu.Unlock()
-
-	close(c.doneCh)
 }
 
 // register adds a new spinner to the coordinator and returns its line number.
@@ -209,7 +203,7 @@ func (c *SpinnerCoordinator) sendUpdate(update spinnerUpdate) {
 
 // processUpdates is the main coordinator goroutine that processes spinner updates.
 func (c *SpinnerCoordinator) processUpdates() {
-	ticker := time.NewTicker(80 * time.Millisecond) // Default animation interval
+	ticker := time.NewTicker(spinnerAnimationInterval * time.Millisecond) // Default animation interval
 	defer ticker.Stop()
 
 	for {
@@ -324,7 +318,7 @@ func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, 
 
 
 // renderCompletion renders the final completion message for a spinner.
-func (c *SpinnerCoordinator) renderCompletion(spinner *Spinner, state *spinnerState, message, color, bullet string) {
+func (c *SpinnerCoordinator) renderCompletion(_ *Spinner, state *spinnerState, message, color, bullet string) {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
