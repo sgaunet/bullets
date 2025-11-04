@@ -223,9 +223,12 @@ func TestMultipleSimultaneousSpinners(t *testing.T) {
 	spinner2 := logger.SpinnerCircle("task 2")
 	spinner3 := logger.SpinnerCircle("task 3")
 
-	// Verify they are registered
-	if len(logger.activeSpinners) != 3 {
-		t.Errorf("Expected 3 active spinners, got %d", len(logger.activeSpinners))
+	// Verify they are registered in coordinator
+	logger.coordinator.mu.Lock()
+	spinnerCount := len(logger.coordinator.spinners)
+	logger.coordinator.mu.Unlock()
+	if spinnerCount != 3 {
+		t.Errorf("Expected 3 active spinners, got %d", spinnerCount)
 	}
 
 	// Verify line numbers are assigned correctly
@@ -247,9 +250,12 @@ func TestMultipleSimultaneousSpinners(t *testing.T) {
 	spinner2.Error("task 2 failed")
 	spinner3.Replace("task 3 done")
 
-	// Verify they are all unregistered
-	if len(logger.activeSpinners) != 0 {
-		t.Errorf("Expected 0 active spinners after stopping, got %d", len(logger.activeSpinners))
+	// Verify they are all unregistered from coordinator
+	logger.coordinator.mu.Lock()
+	spinnerCount = len(logger.coordinator.spinners)
+	logger.coordinator.mu.Unlock()
+	if spinnerCount != 0 {
+		t.Errorf("Expected 0 active spinners after stopping, got %d", spinnerCount)
 	}
 
 	output := buf.String()
@@ -285,9 +291,12 @@ func TestSpinnerLineNumberUpdate(t *testing.T) {
 		t.Errorf("Expected spinner3 lineNumber to be updated to 1, got %d", spinner3.lineNumber)
 	}
 
-	// Verify only 2 spinners remain
-	if len(logger.activeSpinners) != 2 {
-		t.Errorf("Expected 2 active spinners, got %d", len(logger.activeSpinners))
+	// Verify only 2 spinners remain in coordinator
+	logger.coordinator.mu.Lock()
+	spinnerCount := len(logger.coordinator.spinners)
+	logger.coordinator.mu.Unlock()
+	if spinnerCount != 2 {
+		t.Errorf("Expected 2 active spinners, got %d", spinnerCount)
 	}
 
 	spinner1.Stop()

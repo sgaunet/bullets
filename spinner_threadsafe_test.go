@@ -197,9 +197,12 @@ func TestMultipleSpinnersCleanup(t *testing.T) {
 		spinner.Stop()
 	}
 
-	// Verify logger has no active spinners
-	if len(logger.activeSpinners) != 0 {
-		t.Errorf("Expected 0 active spinners, got %d", len(logger.activeSpinners))
+	// Verify coordinator has no active spinners
+	logger.coordinator.mu.Lock()
+	spinnerCount := len(logger.coordinator.spinners)
+	logger.coordinator.mu.Unlock()
+	if spinnerCount != 0 {
+		t.Errorf("Expected 0 active spinners, got %d", spinnerCount)
 	}
 }
 

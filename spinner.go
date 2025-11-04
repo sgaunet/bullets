@@ -66,7 +66,9 @@ func newSpinner(logger *Logger, msg string, frames []string, _ string, interval 
 
 	if isTTY {
 		// TTY mode: allocate a line for this spinner and start animation
+		logger.writeMu.Lock()
 		fmt.Fprintln(logger.writer)
+		logger.writeMu.Unlock()
 		go s.animate()
 	} else {
 		// Non-TTY mode: print static message immediately (no animation)

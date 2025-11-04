@@ -29,8 +29,6 @@ type Logger struct {
 	fields            map[string]interface{}
 	useSpecialBullets bool
 	customBullets     map[Level]string
-	activeSpinners    []*Spinner
-	spinnerMu         sync.Mutex
 	writeMu           sync.Mutex
 	coordinator       *SpinnerCoordinator
 }
@@ -375,25 +373,12 @@ func (l *Logger) log(level Level, msg string) {
 
 // registerSpinner adds a spinner to the active spinners list and returns its line number.
 func (l *Logger) registerSpinner(s *Spinner) int {
-	l.spinnerMu.Lock()
-	l.activeSpinners = append(l.activeSpinners, s)
-	l.spinnerMu.Unlock()
-
-	// Use coordinator for line allocation and management
+	// Use coordinator for spinner registration and line allocation
 	return l.coordinator.register(s)
 }
 
-// unregisterSpinner removes a spinner from the active spinners list.
+// unregisterSpinner removes a spinner from the coordinator.
 func (l *Logger) unregisterSpinner(s *Spinner) {
-	l.spinnerMu.Lock()
-	for i, spinner := range l.activeSpinners {
-		if spinner == s {
-			l.activeSpinners = append(l.activeSpinners[:i], l.activeSpinners[i+1:]...)
-			break
-		}
-	}
-	l.spinnerMu.Unlock()
-
-	// Use coordinator for cleanup
+	// Use coordinator for spinner cleanup
 	l.coordinator.unregister(s)
 }
