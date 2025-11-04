@@ -286,9 +286,21 @@ func (l *Logger) Step(msg string) func() {
 	}
 }
 
-// Spinner creates and starts a spinner with default Braille animation.
-// The spinner uses a smooth Braille dot pattern.
-// Call Stop(), Success(), Error(), or Replace() on the returned spinner to stop it.
+// Spinner creates and starts a spinner with default Braille dots animation.
+//
+// Multiple spinners can run concurrently with automatic coordination. The spinner
+// animates until stopped with Stop(), Success(), Error(), or Replace().
+//
+// Example:
+//
+//	spinner := logger.Spinner("Processing data")
+//	// ... do work ...
+//	spinner.Success("Processing complete")
+//
+// In TTY mode, the spinner animates in-place. In non-TTY mode (logs, CI/CD),
+// it displays as a static message.
+//
+// Thread-safe: Multiple spinners can be created from different goroutines.
 func (l *Logger) Spinner(msg string) *Spinner {
 	l.mu.Lock()
 	color := cyan // Default info level color
@@ -300,7 +312,10 @@ func (l *Logger) Spinner(msg string) *Spinner {
 }
 
 // SpinnerDots creates a spinner with rotating Braille dots pattern.
-// This is the default spinner style with smooth dot transitions.
+//
+// This is the default spinner style with smooth dot transitions. Identical to Spinner().
+//
+// Thread-safe: Multiple spinners can be created from different goroutines.
 func (l *Logger) SpinnerDots(msg string) *Spinner {
 	l.mu.Lock()
 	color := cyan
@@ -311,7 +326,11 @@ func (l *Logger) SpinnerDots(msg string) *Spinner {
 }
 
 // SpinnerCircle creates a spinner with growing/shrinking circle pattern.
-// Creates a glassy circular rotation effect.
+//
+// Creates a glassy circular rotation effect using quarter-circle characters.
+// The animation is slower than the default Braille dots for a more relaxed feel.
+//
+// Thread-safe: Multiple spinners can be created from different goroutines.
 func (l *Logger) SpinnerCircle(msg string) *Spinner {
 	l.mu.Lock()
 	color := cyan
@@ -322,7 +341,11 @@ func (l *Logger) SpinnerCircle(msg string) *Spinner {
 }
 
 // SpinnerBounce creates a spinner with bouncing dot pattern.
-// Creates a smooth bouncing animation effect.
+//
+// Creates a smooth bouncing animation effect using Braille dots that appear
+// to bounce vertically. The animation uses the default speed.
+//
+// Thread-safe: Multiple spinners can be created from different goroutines.
 func (l *Logger) SpinnerBounce(msg string) *Spinner {
 	l.mu.Lock()
 	color := cyan
@@ -333,8 +356,18 @@ func (l *Logger) SpinnerBounce(msg string) *Spinner {
 }
 
 // SpinnerWithFrames creates and starts a spinner with custom animation frames.
-// Frames will cycle through the provided slice of strings.
-// Call Stop(), Success(), Error(), or Replace() on the returned spinner to stop it.
+//
+// Frames will cycle through the provided slice of strings. If frames is empty,
+// defaults to the standard Braille dots pattern.
+//
+// Example:
+//
+//	frames := []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
+//	spinner := logger.SpinnerWithFrames("Compiling", frames)
+//	// ... do work ...
+//	spinner.Success("Compilation complete")
+//
+// Thread-safe: Multiple spinners can be created from different goroutines.
 func (l *Logger) SpinnerWithFrames(msg string, frames []string) *Spinner {
 	l.mu.Lock()
 	color := cyan // Default info level color

@@ -42,7 +42,24 @@ type spinnerState struct {
 }
 
 // SpinnerCoordinator manages all spinner instances and coordinates their output.
-// It provides thread-safe spinner management and serialized output operations.
+//
+// The coordinator implements a centralized pattern where a single goroutine handles
+// all spinner animations and updates. This eliminates timing issues and ensures
+// smooth, flicker-free animations even with multiple concurrent spinners.
+//
+// Architecture:
+//   - Central ticker goroutine updates all active spinners (80ms interval)
+//   - Channel-based communication for thread-safe spinner updates
+//   - Automatic line number allocation and recalculation
+//   - Unified TTY detection for consistent behavior
+//
+// The coordinator is automatically created by Logger and managed internally.
+// Users don't need to interact with it directly.
+//
+// Thread Safety:
+//
+// All coordinator methods are thread-safe and can be called from multiple
+// goroutines. Internal state is protected by mutexes and channel synchronization.
 type SpinnerCoordinator struct {
 	mu        sync.Mutex
 	spinners  map[*Spinner]*spinnerState

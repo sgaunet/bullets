@@ -12,6 +12,24 @@ import (
 )
 
 // Spinner represents an animated spinner that can be stopped and replaced.
+//
+// Spinners provide visual feedback for long-running operations. Multiple spinners
+// can run concurrently with automatic coordination via SpinnerCoordinator.
+//
+// In TTY mode, spinners animate in-place using ANSI escape codes. In non-TTY mode,
+// they display as static messages for compatibility with logs and CI/CD systems.
+//
+// Example usage:
+//
+//	logger := bullets.New(os.Stdout)
+//	spinner := logger.SpinnerCircle("Processing data")
+//	// ... do work ...
+//	spinner.Success("Processing complete")
+//
+// Thread Safety:
+//
+// All spinner methods are thread-safe and can be called from multiple goroutines.
+// The coordinator ensures proper serialization of terminal updates.
 type Spinner struct {
 	logger     *Logger
 	writer     io.Writer
@@ -100,7 +118,12 @@ func (s *Spinner) stopAnimation() {
 	<-s.doneCh // Wait for animation to finish
 }
 
-// Stop stops the spinner and clears the line.
+// Stop stops the spinner and clears the line without displaying a completion message.
+//
+// This method immediately halts the animation and unregisters the spinner from the
+// coordinator. The spinner cannot be reused after calling Stop().
+//
+// Thread-safe: Can be called from any goroutine.
 func (s *Spinner) Stop() {
 	s.stopAnimation()
 
@@ -109,6 +132,20 @@ func (s *Spinner) Stop() {
 }
 
 // Success stops the spinner and replaces it with a success message.
+//
+// The completion message is displayed with a success bullet (green color).
+// The bullet symbol respects custom bullets and special bullet settings.
+//
+// In TTY mode, the spinner line is overwritten with the final message.
+// In non-TTY mode, a new line is printed with the completion message.
+//
+// Example:
+//
+//	spinner := logger.SpinnerCircle("Connecting")
+//	// ... do work ...
+//	spinner.Success("Connected successfully")
+//
+// Thread-safe: Can be called from any goroutine.
 func (s *Spinner) Success(msg string) {
 	// Stop animation but don't unregister yet
 	s.stopAnimation()
@@ -155,6 +192,20 @@ func (s *Spinner) Success(msg string) {
 }
 
 // Error stops the spinner and replaces it with an error message.
+//
+// The completion message is displayed with an error bullet (red color).
+// The bullet symbol respects custom bullets and special bullet settings.
+//
+// In TTY mode, the spinner line is overwritten with the final message.
+// In non-TTY mode, a new line is printed with the completion message.
+//
+// Example:
+//
+//	spinner := logger.SpinnerCircle("Connecting")
+//	// ... do work ...
+//	spinner.Error("Connection failed: timeout")
+//
+// Thread-safe: Can be called from any goroutine.
 func (s *Spinner) Error(msg string) {
 	// Stop animation but don't unregister yet
 	s.stopAnimation()
@@ -201,11 +252,28 @@ func (s *Spinner) Error(msg string) {
 }
 
 // Fail is an alias for Error.
+//
+// This method behaves identically to Error() and is provided for convenience.
+// Thread-safe: Can be called from any goroutine.
 func (s *Spinner) Fail(msg string) {
 	s.Error(msg)
 }
 
 // Replace stops the spinner and replaces it with a custom message at info level.
+//
+// The completion message is displayed with an info bullet (cyan color).
+// The bullet symbol respects custom bullets and special bullet settings.
+//
+// Use Replace when the operation completes but you want to show a custom message
+// that doesn't imply success or failure.
+//
+// Example:
+//
+//	spinner := logger.SpinnerCircle("Processing")
+//	// ... do work ...
+//	spinner.Replace("Processed 1000 records in 5.2s")
+//
+// Thread-safe: Can be called from any goroutine.
 func (s *Spinner) Replace(msg string) {
 	// Stop animation but don't unregister yet
 	s.stopAnimation()
