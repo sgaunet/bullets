@@ -28,6 +28,32 @@ const (
 	updateComplete
 )
 
+// cursorRequestType defines the type of cursor operation.
+type cursorRequestType int
+
+const (
+	cursorMoveUp cursorRequestType = iota
+	cursorMoveDown
+	cursorWriteLine      // Write content and move to next line (newline)
+	cursorWriteInPlace   // Write content without newline
+	cursorGetPosition    // Query current cursor position
+)
+
+// cursorRequest represents a request to move the cursor or write content.
+// All terminal writes go through this channel to ensure atomic, ordered operations.
+type cursorRequest struct {
+	reqType    cursorRequestType
+	lines      int    // Number of lines to move (for moveUp/moveDown)
+	content    string // Content to write (for write operations)
+	responseCh chan cursorResponse
+}
+
+// cursorResponse contains the result of a cursor request.
+type cursorResponse struct {
+	cursorLine int   // Current cursor line after operation
+	err        error // Error if operation failed
+}
+
 // spinnerUpdate represents a message sent from a spinner to the coordinator.
 type spinnerUpdate struct {
 	spinner      *Spinner
@@ -79,14 +105,15 @@ type SpinnerCoordinator struct {
 	doneCh         chan struct{}
 	isTTY          bool
 	writer         io.Writer
-	writeMu        *sync.Mutex // Shared write mutex from Logger
+	writeMu        *sync.Mutex // Deprecated: cursor service now handles synchronization
 	nextLine       int         // Deprecated: use lineTracker instead
 	running        bool
 	inSpinnerMode  bool        // Tracks whether we're in spinner mode (vs regular logging mode)
 	startOnce      sync.Once
 	lineTracker    *lineTracker           // New line tracking system
 	ledger         *linePositionLedger    // Audit trail for line operations
-	cursorLine     int         // Current cursor line position (0 = first spinner line)
+	cursorCh       chan cursorRequest     // Channel for cursor movement requests
+	cursorLine     int                    // Current cursor line (managed by cursor service)
 }
 
 const (
@@ -100,7 +127,7 @@ func newSpinnerCoordinator(writer io.Writer, writeMu *sync.Mutex, isTTY bool) *S
 	tracker := newLineTracker(isTTY, cleanupInterval)
 	ledger := newLinePositionLedger(tracker, maxLedgerHistory) // Keep last N operations
 
-	return &SpinnerCoordinator{
+	c := &SpinnerCoordinator{
 		spinners:    make(map[*Spinner]*spinnerState),
 		updateCh:    make(chan spinnerUpdate, spinnerUpdateChannelSize), // Buffered channel to prevent blocking
 		doneCh:      make(chan struct{}),
@@ -111,8 +138,140 @@ func newSpinnerCoordinator(writer io.Writer, writeMu *sync.Mutex, isTTY bool) *S
 		running:     false,
 		lineTracker: tracker,
 		ledger:      ledger,
-		cursorLine:  0, // Cursor starts at first line
+		cursorCh:    make(chan cursorRequest, 100), // Buffered channel for cursor requests
+		cursorLine:  0,                             // Cursor starts at first line
 	}
+
+	// Start cursor service goroutine
+	go c.processCursorRequests()
+
+	return c
+}
+
+// processCursorRequests is the cursor service goroutine that processes all cursor movement requests.
+// This is the ONLY goroutine that writes to the terminal, ensuring atomic, ordered operations.
+//
+// All cursor movements and writes must go through this service via the cursorCh channel.
+// This eliminates race conditions and cursor position drift.
+func (c *SpinnerCoordinator) processCursorRequests() {
+	for req := range c.cursorCh {
+		// Lock writeMu for exclusive access to the writer
+		c.writeMu.Lock()
+		var err error
+
+		switch req.reqType {
+		case cursorMoveUp:
+			if c.isTTY && req.lines > 0 {
+				debugLogVerbose("CURSOR", "moveUp(%d) from line %d to %d", req.lines, c.cursorLine, c.cursorLine-req.lines)
+				fmt.Fprintf(c.writer, ansiMoveUp, req.lines)
+				c.cursorLine -= req.lines
+			}
+
+		case cursorMoveDown:
+			if c.isTTY && req.lines > 0 {
+				debugLogVerbose("CURSOR", "moveDown(%d) from line %d to %d", req.lines, c.cursorLine, c.cursorLine+req.lines)
+				fmt.Fprintf(c.writer, ansiMoveDown, req.lines)
+				fmt.Fprint(c.writer, ansiMoveToCol)
+				c.cursorLine += req.lines
+			}
+
+		case cursorWriteLine:
+			// Write content with newline (moves cursor to next line)
+			debugLogVerbose("CURSOR", "writeLine at line %d: %q", c.cursorLine, req.content)
+			fmt.Fprintf(c.writer, "%s\n", req.content)
+			c.cursorLine++
+
+		case cursorWriteInPlace:
+			// Write content without newline (cursor stays at current line)
+			debugLogVerbose("CURSOR", "writeInPlace at line %d: %q", c.cursorLine, req.content)
+			if c.isTTY {
+				fmt.Fprintf(c.writer, "%s%s%s", ansiClearLine, ansiMoveToCol, req.content)
+			} else {
+				fmt.Fprint(c.writer, req.content)
+			}
+
+		case cursorGetPosition:
+			// Just return current position, no write
+			debugLogVerbose("CURSOR", "getPosition: %d", c.cursorLine)
+		}
+
+		c.writeMu.Unlock()
+
+		// Send response if channel provided (after unlocking)
+		if req.responseCh != nil {
+			req.responseCh <- cursorResponse{
+				cursorLine: c.cursorLine,
+				err:        err,
+			}
+		}
+	}
+}
+
+// Helper methods for cursor service
+
+// moveCursorUp sends a request to move cursor up by N lines.
+// Blocks until operation completes.
+func (c *SpinnerCoordinator) moveCursorUp(lines int) {
+	if lines <= 0 {
+		return
+	}
+	responseCh := make(chan cursorResponse)
+	c.cursorCh <- cursorRequest{
+		reqType:    cursorMoveUp,
+		lines:      lines,
+		responseCh: responseCh,
+	}
+	<-responseCh // Wait for completion
+}
+
+// moveCursorDown sends a request to move cursor down by N lines.
+// Blocks until operation completes.
+func (c *SpinnerCoordinator) moveCursorDown(lines int) {
+	if lines <= 0 {
+		return
+	}
+	responseCh := make(chan cursorResponse)
+	c.cursorCh <- cursorRequest{
+		reqType:    cursorMoveDown,
+		lines:      lines,
+		responseCh: responseCh,
+	}
+	<-responseCh // Wait for completion
+}
+
+// writeLine sends a request to write content with newline.
+// Blocks until operation completes.
+func (c *SpinnerCoordinator) writeLine(content string) {
+	responseCh := make(chan cursorResponse)
+	c.cursorCh <- cursorRequest{
+		reqType:    cursorWriteLine,
+		content:    content,
+		responseCh: responseCh,
+	}
+	<-responseCh // Wait for completion
+}
+
+// writeInPlace sends a request to write content without newline.
+// Blocks until operation completes.
+func (c *SpinnerCoordinator) writeInPlace(content string) {
+	responseCh := make(chan cursorResponse)
+	c.cursorCh <- cursorRequest{
+		reqType:    cursorWriteInPlace,
+		content:    content,
+		responseCh: responseCh,
+	}
+	<-responseCh // Wait for completion
+}
+
+// getCursorPosition returns the current cursor line position.
+func (c *SpinnerCoordinator) getCursorPosition() int {
+	responseCh := make(chan cursorResponse)
+	c.cursorCh <- cursorRequest{
+		reqType:    cursorGetPosition,
+		responseCh: responseCh,
+	}
+	resp := <-responseCh
+	return resp.cursorLine
 }
 
 // start begins the coordinator's update processing goroutine.
@@ -403,75 +562,67 @@ func (c *SpinnerCoordinator) updateAnimations() {
 }
 
 // renderSpinnerFrame renders a single spinner frame (helper for updateAnimations).
+// Uses cursor service for atomic, ordered terminal operations.
 func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, color, message string, isFirstFrame bool) {
-	debugLogVerbose("RENDER", "Rendering frame at line %d: %q (firstFrame=%v, cursorLine=%d)", lineNumber, message, isFirstFrame, c.cursorLine)
-
-	c.writeMu.Lock()
-	defer c.writeMu.Unlock()
+	cursorPos := c.getCursorPosition()
+	debugLogVerbose("RENDER", "Rendering frame at line %d: %q (firstFrame=%v, cursorPos=%d)", lineNumber, message, isFirstFrame, cursorPos)
 
 	indent := strings.Repeat("  ", padding)
 	bullet := colorize(color, frame)
 	content := fmt.Sprintf("%s%s %s", indent, bullet, message)
 
-	if isFirstFrame {
-		// First frame: print with newline to establish the line
-		debugLogVerbose("RENDER", "First frame: establishing line %d with newline (cursor moves from %d to %d)", lineNumber, c.cursorLine, lineNumber+1)
-		fmt.Fprintf(c.writer, "%s\n", content)
-		// Cursor is now at the line AFTER the one we just printed
-		c.cursorLine = lineNumber + 1
-	} else {
-		// Subsequent frames: update in place using cursor movement
-		// Calculate how many lines to move up from current cursor position
-		linesToMove := c.cursorLine - lineNumber
+	if isFirstFrame && !c.isTTY {
+		// Non-TTY first frame: write with newline
+		debugLogVerbose("RENDER", "First frame (non-TTY): writing with newline")
+		c.writeLine(content)
+		return
+	}
 
-		if linesToMove > 0 {
-			debugLogVerbose("ANSI", "Moving cursor up %d lines (from %d to %d)", linesToMove, c.cursorLine, lineNumber)
-			fmt.Fprintf(c.writer, ansiMoveUp, linesToMove)
-		} else if linesToMove < 0 {
-			debugLogVerbose("ANSI", "Moving cursor down %d lines (from %d to %d)", -linesToMove, c.cursorLine, lineNumber)
-			fmt.Fprintf(c.writer, ansiMoveDown, -linesToMove)
-		}
+	if isFirstFrame && c.isTTY && lineNumber == cursorPos {
+		// TTY first frame at cursor position: establish line with newline
+		debugLogVerbose("RENDER", "First frame (TTY): establishing line %d at cursor position", lineNumber)
+		c.writeLine(content)
+		return
+	}
 
-		// Clear line, move to column 0, write content
-		debugLogVerbose("ANSI", "Clearing line and writing content")
-		fmt.Fprintf(c.writer, "%s%s%s", ansiClearLine, ansiMoveToCol, content)
+	// All other cases (subsequent frames OR first frames not at cursor position):
+	// Use cursor positioning to update in place
+	linesToMove := cursorPos - lineNumber
 
-		// Move cursor back to original position
-		if linesToMove > 0 {
-			debugLogVerbose("ANSI", "Moving cursor down %d lines back to %d", linesToMove, c.cursorLine)
-			fmt.Fprintf(c.writer, ansiMoveDown, linesToMove)
-			fmt.Fprint(c.writer, ansiMoveToCol)
-		} else if linesToMove < 0 {
-			debugLogVerbose("ANSI", "Moving cursor up %d lines back to %d", -linesToMove, c.cursorLine)
-			fmt.Fprintf(c.writer, ansiMoveUp, -linesToMove)
-			fmt.Fprint(c.writer, ansiMoveToCol)
-		}
+	if linesToMove > 0 {
+		c.moveCursorUp(linesToMove)
+	} else if linesToMove < 0 {
+		c.moveCursorDown(-linesToMove)
+	}
+
+	// Write content in place (clears line automatically)
+	c.writeInPlace(content)
+
+	// Move cursor back to original position
+	if linesToMove > 0 {
+		c.moveCursorDown(linesToMove)
+	} else if linesToMove < 0 {
+		c.moveCursorUp(-linesToMove)
 	}
 }
 
 
 // renderCompletionWithLineNum renders the final completion message for a spinner at the specified line.
-// The line number should be obtained before the spinner is unregistered from lineTracker.
-// This function assumes the spinner has already been unregistered, so it queries lineTracker for the
-// UPDATED active count to calculate the correct cursor position.
+// Uses cursor service for atomic, ordered terminal operations.
 func (c *SpinnerCoordinator) renderCompletionWithLineNum(spinner *Spinner, state *spinnerState, lineNum int, message, color, bullet string) {
 	debugLog("COMPLETION", "Rendering completion for spinner %p at line %d: %q", spinner, lineNum, message)
 
-	c.writeMu.Lock()
-	defer c.writeMu.Unlock()
-
 	indent := strings.Repeat("  ", state.padding)
 	formatted := fmt.Sprintf("%s %s", colorize(color, bullet), message)
+	content := fmt.Sprintf("%s%s", indent, formatted)
 
 	if c.isTTY {
 		if lineNum == -1 {
 			// Invalid line number, fall back to non-TTY mode
-			debugLog("COMPLETION", "Invalid line number for spinner %p, falling back to non-TTY mode", spinner)
-			fmt.Fprintf(c.writer, "%s%s\n", indent, formatted)
+			debugLog("COMPLETION", "Invalid line number for spinner %p, falling back", spinner)
+			c.writeLine(content)
 			return
 		}
-
-		debugLog("COMPLETION", "Completing spinner at line %d (cursorLine=%d)", lineNum, c.cursorLine)
 
 		// Get the number of remaining active spinners (spinner already unregistered)
 		activeCount := c.lineTracker.getActiveLineCount()
@@ -479,43 +630,31 @@ func (c *SpinnerCoordinator) renderCompletionWithLineNum(spinner *Spinner, state
 
 		debugLog("COMPLETION", "Active spinner count after unregistration: %d", activeCount)
 
-		// TTY mode: update the spinner's line with final message
-		// Calculate movement from current cursor position to the target line
-		linesToMove := c.cursorLine - lineNum
+		// Move to target line, write completion, move back
+		cursorPos := c.getCursorPosition()
+		linesToMove := cursorPos - lineNum
 
 		if linesToMove > 0 {
-			debugLog("ANSI", "Moving cursor up %d lines for completion (from %d to %d)", linesToMove, c.cursorLine, lineNum)
-			fmt.Fprintf(c.writer, ansiMoveUp, linesToMove)
+			c.moveCursorUp(linesToMove)
 		} else if linesToMove < 0 {
-			debugLog("ANSI", "Moving cursor down %d lines for completion (from %d to %d)", -linesToMove, c.cursorLine, lineNum)
-			fmt.Fprintf(c.writer, ansiMoveDown, -linesToMove)
+			c.moveCursorDown(-linesToMove)
 		}
 
-		// Clear line and write completion message WITHOUT newline
-		// In TTY mode, we don't use newlines because:
-		// 1. Newlines create actual new lines in terminal output, breaking cursor positioning
-		// 2. The gap in spinner positions (no reallocation) preserves the completion message
-		// 3. Remaining spinners skip over this line when animating
-		debugLog("ANSI", "Writing completion message without newline: %q", formatted)
-		fmt.Fprintf(c.writer, "%s%s%s%s", ansiClearLine, ansiMoveToCol, indent, formatted)
+		// Write completion message without newline
+		c.writeInPlace(content)
 
-		// Move cursor back to original position (keep movements balanced)
+		// Move cursor back to original position
 		if linesToMove > 0 {
-			debugLog("ANSI", "Moving cursor down %d lines back to original position %d", linesToMove, c.cursorLine)
-			fmt.Fprintf(c.writer, ansiMoveDown, linesToMove)
-			fmt.Fprint(c.writer, ansiMoveToCol)
+			c.moveCursorDown(linesToMove)
 		} else if linesToMove < 0 {
-			debugLog("ANSI", "Moving cursor up %d lines back to original position %d", -linesToMove, c.cursorLine)
-			fmt.Fprintf(c.writer, ansiMoveUp, -linesToMove)
-			fmt.Fprint(c.writer, ansiMoveToCol)
+			c.moveCursorUp(-linesToMove)
 		}
-		// Cursor is now back at c.cursorLine
 
 		// If this is the last spinner AND we're in spinner mode, exit spinner mode
 		c.mu.Lock()
 		shouldExitSpinnerMode := isLastSpinner && c.inSpinnerMode
 		if shouldExitSpinnerMode {
-			debugLog("MODE_TRANSITION", "Setting inSpinnerMode=false (was true) - last spinner completing at line %d", lineNum)
+			debugLog("MODE_TRANSITION", "Exiting spinner mode - last spinner completing at line %d", lineNum)
 			c.inSpinnerMode = false
 		}
 		c.mu.Unlock()
@@ -526,27 +665,22 @@ func (c *SpinnerCoordinator) renderCompletionWithLineNum(spinner *Spinner, state
 			maxLineUsed := c.lineTracker.getMaxLineUsed()
 			targetLine := maxLineUsed + 1
 
-			// Move from current position to target
-			moveDist := targetLine - c.cursorLine
+			cursorPos = c.getCursorPosition()
+			moveDist := targetLine - cursorPos
 			if moveDist > 0 {
-				debugLog("ANSI", "Moving cursor down %d lines to fresh line %d", moveDist, targetLine)
-				fmt.Fprintf(c.writer, ansiMoveDown, moveDist)
-				fmt.Fprint(c.writer, ansiMoveToCol)
+				c.moveCursorDown(moveDist)
 			}
 
 			// Emit newline to establish fresh line
-			fmt.Fprint(c.writer, "\n")
-			c.cursorLine = targetLine + 1
-			debugLog("MODE_TRANSITION", "Emitted newline, cursor now at line %d", c.cursorLine)
+			c.writeLine("")
+			debugLog("MODE_TRANSITION", "Emitted newline, exiting spinner mode")
 		} else {
-			// More spinners remain: cursor stays at current position
-			// It will be adjusted by next animation frame if needed
-			debugLog("COMPLETION", "Cursor remains at line %d", c.cursorLine)
+			debugLog("COMPLETION", "More spinners remain, cursor unchanged")
 		}
 	} else {
 		// Non-TTY mode: just print the completion message as a new line
 		debugLog("COMPLETION", "Non-TTY mode: printing completion as new line")
-		fmt.Fprintf(c.writer, "%s%s\n", indent, formatted)
+		c.writeLine(content)
 	}
 }
 
