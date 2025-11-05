@@ -301,12 +301,10 @@ func TestConcurrentSpinnersLinePositionStability(t *testing.T) {
 	spinner4 := logger.Spinner("S4")
 
 	// Record line assignments
-	logger.coordinator.mu.Lock()
-	line1 := logger.coordinator.spinners[spinner1].lineNumber
-	line2 := logger.coordinator.spinners[spinner2].lineNumber
-	line3 := logger.coordinator.spinners[spinner3].lineNumber
-	line4 := logger.coordinator.spinners[spinner4].lineNumber
-	logger.coordinator.mu.Unlock()
+	line1 := logger.coordinator.getSpinnerLineNumber(spinner1)
+	line2 := logger.coordinator.getSpinnerLineNumber(spinner2)
+	line3 := logger.coordinator.getSpinnerLineNumber(spinner3)
+	line4 := logger.coordinator.getSpinnerLineNumber(spinner4)
 
 	t.Logf("Initial line assignments: S1=%d, S2=%d, S3=%d, S4=%d",
 		line1, line2, line3, line4)
@@ -319,11 +317,9 @@ func TestConcurrentSpinnersLinePositionStability(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Check remaining spinner positions haven't changed
-	logger.coordinator.mu.Lock()
-	newLine1 := logger.coordinator.spinners[spinner1].lineNumber
-	newLine3 := logger.coordinator.spinners[spinner3].lineNumber
-	newLine4 := logger.coordinator.spinners[spinner4].lineNumber
-	logger.coordinator.mu.Unlock()
+	newLine1 := logger.coordinator.getSpinnerLineNumber(spinner1)
+	newLine3 := logger.coordinator.getSpinnerLineNumber(spinner3)
+	newLine4 := logger.coordinator.getSpinnerLineNumber(spinner4)
 
 	t.Logf("After S2 completion: S1=%d, S3=%d, S4=%d",
 		newLine1, newLine3, newLine4)

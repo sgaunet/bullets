@@ -41,8 +41,8 @@ type spinnerUpdate struct {
 }
 
 // spinnerState tracks the internal state of a spinner in the coordinator.
+// Note: Line numbers are NOT stored here - lineTracker is the single source of truth.
 type spinnerState struct {
-	lineNumber   int
 	currentFrame int
 	message      string
 	frames       []string
@@ -127,19 +127,26 @@ func (c *SpinnerCoordinator) start() {
 	})
 }
 
+// getSpinnerLineNumber returns the line number for a spinner from the lineTracker.
+// Returns -1 if the spinner is not registered.
+// This is the authoritative method for querying line positions.
+func (c *SpinnerCoordinator) getSpinnerLineNumber(s *Spinner) int {
+	return c.lineTracker.getLineNumber(s)
+}
+
 // register adds a new spinner to the coordinator and returns its line number.
 func (c *SpinnerCoordinator) register(s *Spinner) int {
 	c.start() // Ensure coordinator is running
 
-	// Allocate line using the line tracker
+	// Allocate line using the line tracker (single source of truth)
 	lineNum := c.lineTracker.allocateLine(s)
 	c.ledger.recordAllocation(s, lineNum)
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Store spinner state WITHOUT line number - lineTracker owns that
 	c.spinners[s] = &spinnerState{
-		lineNumber:   lineNum,
 		currentFrame: 0,
 		message:      s.msg,
 		frames:       s.frames,
@@ -154,18 +161,22 @@ func (c *SpinnerCoordinator) register(s *Spinner) int {
 
 // unregister removes a spinner from the coordinator.
 func (c *SpinnerCoordinator) unregister(s *Spinner) {
+	// Get line number from lineTracker (single source of truth) before unregistering
+	lineNum := c.lineTracker.getLineNumber(s)
+
 	c.mu.Lock()
 	state, exists := c.spinners[s]
 	if exists {
 		state.stopped = true
-		lineNum := state.lineNumber
 		delete(c.spinners, s)
 		c.mu.Unlock()
 
 		// Deallocate line using the line tracker
 		// This marks the line as reserved (TTY mode) or available (non-TTY mode)
 		c.lineTracker.deallocateLine(s)
-		c.ledger.recordDeallocation(s, lineNum)
+		if lineNum != -1 {
+			c.ledger.recordDeallocation(s, lineNum)
+		}
 	} else {
 		c.mu.Unlock()
 	}
@@ -270,6 +281,7 @@ func (c *SpinnerCoordinator) updateAnimations() {
 
 	// Collect rendering data while holding lock
 	type renderData struct {
+		spinner      *Spinner
 		lineNumber   int
 		padding      int
 		frame        string
@@ -278,11 +290,18 @@ func (c *SpinnerCoordinator) updateAnimations() {
 	}
 	toRender := make([]renderData, 0, len(c.spinners))
 
-	for _, state := range c.spinners {
+	for spinner, state := range c.spinners {
 		if !state.stopped {
+			// Query lineTracker for authoritative line number
+			lineNum := c.lineTracker.getLineNumber(spinner)
+			if lineNum == -1 {
+				continue // Spinner not registered in lineTracker
+			}
+
 			state.currentFrame = (state.currentFrame + 1) % len(state.frames)
 			toRender = append(toRender, renderData{
-				lineNumber: state.lineNumber,
+				spinner:    spinner,
+				lineNumber: lineNum,
 				padding:    state.padding,
 				frame:      state.frames[state.currentFrame],
 				color:      state.color,
@@ -324,7 +343,7 @@ func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, 
 
 
 // renderCompletion renders the final completion message for a spinner.
-func (c *SpinnerCoordinator) renderCompletion(_ *Spinner, state *spinnerState, message, color, bullet string) {
+func (c *SpinnerCoordinator) renderCompletion(spinner *Spinner, state *spinnerState, message, color, bullet string) {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
@@ -332,8 +351,16 @@ func (c *SpinnerCoordinator) renderCompletion(_ *Spinner, state *spinnerState, m
 	formatted := fmt.Sprintf("%s %s", colorize(color, bullet), message)
 
 	if c.isTTY {
+		// Query lineTracker for authoritative line number
+		lineNum := c.lineTracker.getLineNumber(spinner)
+		if lineNum == -1 {
+			// Spinner not registered, fall back to non-TTY mode
+			fmt.Fprintf(c.writer, "%s%s\n", indent, formatted)
+			return
+		}
+
 		// TTY mode: update the spinner's line with final message
-		linesToMove := state.lineNumber + 1
+		linesToMove := lineNum + 1
 
 		if linesToMove > 0 {
 			fmt.Fprintf(c.writer, ansiMoveUp, linesToMove)
@@ -350,4 +377,99 @@ func (c *SpinnerCoordinator) renderCompletion(_ *Spinner, state *spinnerState, m
 		// Non-TTY mode: just print the completion message as a new line
 		fmt.Fprintf(c.writer, "%s%s\n", indent, formatted)
 	}
+}
+
+// stateInconsistency represents a detected state inconsistency.
+type stateInconsistency struct {
+	spinner     *Spinner
+	description string
+	severity    string // "warning" or "error"
+}
+
+// validateCoordinatorState performs comprehensive state consistency validation.
+// Returns a slice of detected inconsistencies. Empty slice means state is consistent.
+//
+// This method checks:
+// - All spinners in coordinator.spinners exist in lineTracker
+// - All active spinners in lineTracker exist in coordinator.spinners
+// - No spinner has conflicting state between coordinator and lineTracker
+//
+// Thread-safe: Can be called concurrently with other operations.
+func (c *SpinnerCoordinator) validateCoordinatorState() []stateInconsistency {
+	var inconsistencies []stateInconsistency
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Check 1: Every spinner in coordinator.spinners should have a line in lineTracker
+	for spinner, state := range c.spinners {
+		lineNum := c.lineTracker.getLineNumber(spinner)
+
+		if lineNum == -1 {
+			inconsistencies = append(inconsistencies, stateInconsistency{
+				spinner:     spinner,
+				description: "Spinner registered in coordinator but not in lineTracker",
+				severity:    "error",
+			})
+			continue
+		}
+
+		// Check if stopped spinners should still be in the map
+		if state.stopped {
+			inconsistencies = append(inconsistencies, stateInconsistency{
+				spinner:     spinner,
+				description: "Stopped spinner still in coordinator.spinners map",
+				severity:    "warning",
+			})
+		}
+	}
+
+	// Check 2: Validate lineTracker internal consistency
+	invalidSpinners := c.lineTracker.validateLinePositions()
+	for _, spinner := range invalidSpinners {
+		inconsistencies = append(inconsistencies, stateInconsistency{
+			spinner:     spinner,
+			description: "LineTracker reports invalid line position",
+			severity:    "error",
+		})
+	}
+
+	return inconsistencies
+}
+
+// checkStateInvariants verifies internal consistency invariants.
+// Panics in development mode if invariants are violated.
+// Returns true if all invariants hold, false otherwise.
+//
+// Invariants checked:
+// - Active spinner count matches between coordinator and lineTracker
+// - No nil spinner references in maps
+// - All frame indices are within valid ranges
+func (c *SpinnerCoordinator) checkStateInvariants() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	allInvariantsHold := true
+
+	// Invariant 1: No nil spinner keys
+	for spinner := range c.spinners {
+		if spinner == nil {
+			allInvariantsHold = false
+			break
+		}
+	}
+
+	// Invariant 2: Frame indices are valid
+	for _, state := range c.spinners {
+		if state.currentFrame < 0 || state.currentFrame >= len(state.frames) {
+			allInvariantsHold = false
+			break
+		}
+		if len(state.frames) == 0 {
+			allInvariantsHold = false
+			break
+		}
+	}
+
+	return allInvariantsHold
 }

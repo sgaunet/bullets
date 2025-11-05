@@ -351,11 +351,9 @@ func TestLinePositionDriftUnderLoad(t *testing.T) {
 	spinner3 := logger.Spinner("Persistent 3")
 
 	// Record initial positions
-	logger.coordinator.mu.Lock()
-	initialPos1 := logger.coordinator.spinners[spinner1].lineNumber
-	initialPos2 := logger.coordinator.spinners[spinner2].lineNumber
-	initialPos3 := logger.coordinator.spinners[spinner3].lineNumber
-	logger.coordinator.mu.Unlock()
+	initialPos1 := logger.coordinator.getSpinnerLineNumber(spinner1)
+	initialPos2 := logger.coordinator.getSpinnerLineNumber(spinner2)
+	initialPos3 := logger.coordinator.getSpinnerLineNumber(spinner3)
 
 	// Create and destroy many temporary spinners
 	for i := 0; i < 30; i++ {
@@ -365,11 +363,9 @@ func TestLinePositionDriftUnderLoad(t *testing.T) {
 	}
 
 	// Check positions haven't drifted
-	logger.coordinator.mu.Lock()
-	finalPos1 := logger.coordinator.spinners[spinner1].lineNumber
-	finalPos2 := logger.coordinator.spinners[spinner2].lineNumber
-	finalPos3 := logger.coordinator.spinners[spinner3].lineNumber
-	logger.coordinator.mu.Unlock()
+	finalPos1 := logger.coordinator.getSpinnerLineNumber(spinner1)
+	finalPos2 := logger.coordinator.getSpinnerLineNumber(spinner2)
+	finalPos3 := logger.coordinator.getSpinnerLineNumber(spinner3)
 
 	t.Logf("Position stability: S1 %d->%d, S2 %d->%d, S3 %d->%d",
 		initialPos1, finalPos1, initialPos2, finalPos2, initialPos3, finalPos3)

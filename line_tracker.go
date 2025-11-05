@@ -138,8 +138,8 @@ func (lt *lineTracker) deallocateLine(spinner *Spinner) {
 
 // getLineNumber returns the line number for a given spinner.
 // Returns -1 if the spinner is not registered.
-// This function is primarily used for testing and debugging.
-func (lt *lineTracker) getLineNumber(spinner *Spinner) int { //nolint:unused // Used in tests
+// This is the authoritative method for querying spinner line positions.
+func (lt *lineTracker) getLineNumber(spinner *Spinner) int {
 	lt.mu.Lock()
 	defer lt.mu.Unlock()
 

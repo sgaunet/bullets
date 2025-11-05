@@ -276,9 +276,7 @@ func TestLineNumberDriftAfterCompletion(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Record spinner3's line number before completion
-	logger.coordinator.mu.Lock()
-	lineBeforeCompletion := logger.coordinator.spinners[spinner3].lineNumber
-	logger.coordinator.mu.Unlock()
+	lineBeforeCompletion := logger.coordinator.getSpinnerLineNumber(spinner3)
 
 	// Complete middle spinner (spinner2 at line 1)
 	spinner2.Success("Task 2 complete")
@@ -287,9 +285,7 @@ func TestLineNumberDriftAfterCompletion(t *testing.T) {
 	// This is the fix: spinners no longer shift to fill gaps
 	time.Sleep(50 * time.Millisecond)
 
-	logger.coordinator.mu.Lock()
-	lineAfterCompletion := logger.coordinator.spinners[spinner3].lineNumber
-	logger.coordinator.mu.Unlock()
+	lineAfterCompletion := logger.coordinator.getSpinnerLineNumber(spinner3)
 
 	t.Logf("Spinner3 line number: before=%d, after=%d", lineBeforeCompletion, lineAfterCompletion)
 
