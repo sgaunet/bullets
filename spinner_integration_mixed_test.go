@@ -10,7 +10,7 @@ import (
 // TestMixedCompletionStatuses tests Success, Error, and Stop mixed together
 func TestMixedCompletionStatuses(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -19,7 +19,7 @@ func TestMixedCompletionStatuses(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -58,7 +58,7 @@ func TestMixedCompletionStatuses(t *testing.T) {
 // TestAlternatingSuccessError tests alternating success and error patterns
 func TestAlternatingSuccessError(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -67,7 +67,7 @@ func TestAlternatingSuccessError(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -94,7 +94,7 @@ func TestAlternatingSuccessError(t *testing.T) {
 // TestAllSpinnersFailSimultaneously tests all spinners completing with errors
 func TestAllSpinnersFailSimultaneously(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -103,7 +103,7 @@ func TestAllSpinnersFailSimultaneously(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -143,7 +143,7 @@ func TestAllSpinnersFailSimultaneously(t *testing.T) {
 // TestReplaceCompletionType tests the Replace completion method
 func TestReplaceCompletionType(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -152,7 +152,7 @@ func TestReplaceCompletionType(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -176,7 +176,7 @@ func TestReplaceCompletionType(t *testing.T) {
 // TestVaryingMessageLengths tests completions with different message sizes
 func TestVaryingMessageLengths(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -185,7 +185,7 @@ func TestVaryingMessageLengths(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -219,7 +219,7 @@ func TestVaryingMessageLengths(t *testing.T) {
 // TestMixedCompletionsConcurrent tests mixed completions happening concurrently
 func TestMixedCompletionsConcurrent(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -228,7 +228,7 @@ func TestMixedCompletionsConcurrent(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -275,7 +275,7 @@ func TestMixedCompletionsConcurrent(t *testing.T) {
 // TestErrorAfterSuccess tests error completion following success
 func TestErrorAfterSuccess(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -284,7 +284,7 @@ func TestErrorAfterSuccess(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -310,7 +310,7 @@ func TestErrorAfterSuccess(t *testing.T) {
 // TestStopWithoutMessage tests Stop() without any message
 func TestStopWithoutMessage(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -319,7 +319,7 @@ func TestStopWithoutMessage(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -343,7 +343,7 @@ func TestStopWithoutMessage(t *testing.T) {
 // TestComplexMixedPattern tests a complex realistic pattern
 func TestComplexMixedPattern(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -352,7 +352,7 @@ func TestComplexMixedPattern(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -391,7 +391,7 @@ func TestComplexMixedPattern(t *testing.T) {
 // TestMixedWithColoredOutput validates ANSI color codes don't interfere
 func TestMixedWithColoredOutput(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -400,7 +400,7 @@ func TestMixedWithColoredOutput(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 

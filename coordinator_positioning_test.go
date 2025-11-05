@@ -14,7 +14,7 @@ import (
 // not shift to fill gaps.
 func TestSpinnerPositionStability(t *testing.T) {
 	var buf bytes.Buffer
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 	logger := &Logger{
 		writer:            &buf,
 		writeMu:           writeMu,
@@ -22,7 +22,7 @@ func TestSpinnerPositionStability(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(&buf, &writeMu, true), // Force TTY
+		coordinator:       newSpinnerCoordinator(&buf, writeMu, true), // Force TTY
 	}
 	logger.coordinator.isTTY = true
 
@@ -54,8 +54,16 @@ func TestSpinnerPositionStability(t *testing.T) {
 	// Let spinner4 animate a bit more
 	time.Sleep(200 * time.Millisecond)
 
+	// Stop spinners and wait before reading buffer
+	spinner1.Stop()
+	spinner2.Stop()
+	spinner4.Stop()
+	time.Sleep(100 * time.Millisecond)
+
 	// Check the actual ANSI output to verify spinner4 is updating the correct line
+	writeMu.Lock()
 	output := buf.String()
+	writeMu.Unlock()
 
 	// Count moveUp sequences targeting line 3 (spinner4's original position)
 	// We expect spinner4 to keep using [4A (moving up 4 lines from base to line 3)
@@ -74,11 +82,6 @@ func TestSpinnerPositionStability(t *testing.T) {
 		t.Errorf("Spinner4 shifted from line %d to line %d - this causes wrong-line updates!",
 			initialLine4, currentLine4)
 	}
-
-	// Clean up
-	spinner1.Stop()
-	spinner2.Stop()
-	spinner4.Stop()
 }
 
 // TestCompletionDoesNotShiftRemainingSpinners is a more explicit test
@@ -86,7 +89,7 @@ func TestSpinnerPositionStability(t *testing.T) {
 // spinners to shift line positions incorrectly.
 func TestCompletionDoesNotShiftRemainingSpinners(t *testing.T) {
 	var buf bytes.Buffer
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 	logger := &Logger{
 		writer:            &buf,
 		writeMu:           writeMu,
@@ -94,7 +97,7 @@ func TestCompletionDoesNotShiftRemainingSpinners(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(&buf, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(&buf, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -151,7 +154,7 @@ func TestCompletionDoesNotShiftRemainingSpinners(t *testing.T) {
 // overwritten by subsequent spinner updates
 func TestVisualOutputNoOverlap(t *testing.T) {
 	var buf bytes.Buffer
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 	logger := &Logger{
 		writer:            &buf,
 		writeMu:           writeMu,
@@ -159,7 +162,7 @@ func TestVisualOutputNoOverlap(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(&buf, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(&buf, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -176,7 +179,15 @@ func TestVisualOutputNoOverlap(t *testing.T) {
 	// Let s3 animate more - it should NOT overwrite "Task B done"
 	time.Sleep(200 * time.Millisecond)
 
+	// Stop remaining spinners before reading buffer to avoid race
+	s1.Stop()
+	s3.Stop()
+	time.Sleep(100 * time.Millisecond) // Let stop complete
+
+	// Acquire write lock to ensure all writes are complete before reading
+	writeMu.Lock()
 	output := buf.String()
+	writeMu.Unlock()
 
 	// The output should contain "Task B done" and it should not be
 	// overwritten by subsequent s3 updates
@@ -209,7 +220,4 @@ func TestVisualOutputNoOverlap(t *testing.T) {
 		// Note: s2's completion itself will use [2A, so we can't enforce
 		// incorrectUpdates == 0, but after completion, s3 should dominate with [3A
 	}
-
-	s1.Stop()
-	s3.Stop()
 }

@@ -29,7 +29,7 @@ type Logger struct {
 	fields            map[string]interface{}
 	useSpecialBullets bool
 	customBullets     map[Level]string
-	writeMu           sync.Mutex
+	writeMu           *sync.Mutex
 	coordinator       *SpinnerCoordinator
 }
 
@@ -43,6 +43,7 @@ func New(w io.Writer) *Logger {
 		isTTY = term.IsTerminal(int(f.Fd()))
 	}
 
+	writeMu := &sync.Mutex{}
 	l := &Logger{
 		writer:            w,
 		level:             InfoLevel,
@@ -50,10 +51,11 @@ func New(w io.Writer) *Logger {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: false,
 		customBullets:     make(map[Level]string),
+		writeMu:           writeMu,
 	}
 
 	// Initialize coordinator with shared write mutex
-	l.coordinator = newSpinnerCoordinator(w, &l.writeMu, isTTY)
+	l.coordinator = newSpinnerCoordinator(w, writeMu, isTTY)
 
 	return l
 }

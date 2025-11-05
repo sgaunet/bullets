@@ -9,7 +9,7 @@ import (
 // TestConcurrentSpinnersDifferentDurations tests 2-3 spinners with varied lifespans
 func TestConcurrentSpinnersDifferentDurations(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -18,7 +18,7 @@ func TestConcurrentSpinnersDifferentDurations(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -60,7 +60,7 @@ func TestConcurrentSpinnersDifferentDurations(t *testing.T) {
 // TestConcurrentSpinnersEarlyCompletion tests first spinner completing early
 func TestConcurrentSpinnersEarlyCompletion(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -69,7 +69,7 @@ func TestConcurrentSpinnersEarlyCompletion(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -105,7 +105,7 @@ func TestConcurrentSpinnersEarlyCompletion(t *testing.T) {
 // TestConcurrentSpinnersLateCompletion tests last spinner completing after others
 func TestConcurrentSpinnersLateCompletion(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -114,7 +114,7 @@ func TestConcurrentSpinnersLateCompletion(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -146,7 +146,7 @@ func TestConcurrentSpinnersLateCompletion(t *testing.T) {
 // TestConcurrentSpinnersMiddleCompletion tests middle spinner completing first
 func TestConcurrentSpinnersMiddleCompletion(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -155,7 +155,7 @@ func TestConcurrentSpinnersMiddleCompletion(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -193,7 +193,7 @@ func TestConcurrentSpinnersMiddleCompletion(t *testing.T) {
 // TestConcurrentSpinnersStaggeredStart tests spinners starting at different times
 func TestConcurrentSpinnersStaggeredStart(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -202,7 +202,7 @@ func TestConcurrentSpinnersStaggeredStart(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -231,7 +231,7 @@ func TestConcurrentSpinnersStaggeredStart(t *testing.T) {
 // TestConcurrentSpinnersOverlappingLifetimes tests complex overlapping patterns
 func TestConcurrentSpinnersOverlappingLifetimes(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -240,7 +240,7 @@ func TestConcurrentSpinnersOverlappingLifetimes(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -281,7 +281,7 @@ func TestConcurrentSpinnersOverlappingLifetimes(t *testing.T) {
 // line positions don't drift as spinners complete
 func TestConcurrentSpinnersLinePositionStability(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -290,7 +290,7 @@ func TestConcurrentSpinnersLinePositionStability(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -355,7 +355,7 @@ func TestConcurrentSpinnersLinePositionStability(t *testing.T) {
 // different numbers of animation frames render correctly
 func TestConcurrentSpinnersVaryingAnimationFrames(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -364,7 +364,7 @@ func TestConcurrentSpinnersVaryingAnimationFrames(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 

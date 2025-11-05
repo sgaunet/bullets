@@ -10,7 +10,7 @@ import (
 // don't introduce blank lines between completion and next spinner start
 func TestSequentialSpinnersNoBlankLines(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -19,7 +19,7 @@ func TestSequentialSpinnersNoBlankLines(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -69,7 +69,7 @@ func TestSequentialSpinnersNoBlankLines(t *testing.T) {
 // correct position after each frame update
 func TestSequentialSpinnersCursorPositioning(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -78,7 +78,7 @@ func TestSequentialSpinnersCursorPositioning(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -122,7 +122,7 @@ func TestSequentialSpinnersCursorPositioning(t *testing.T) {
 // happens properly without leaving artifacts
 func TestSequentialSpinnersLineClearing(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -131,7 +131,7 @@ func TestSequentialSpinnersLineClearing(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -179,7 +179,7 @@ func TestSequentialSpinnersLineClearing(t *testing.T) {
 // are immediately visible without animation delay
 func TestSequentialSpinnersCompletionTiming(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -188,7 +188,7 @@ func TestSequentialSpinnersCompletionTiming(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -221,7 +221,7 @@ func TestSequentialSpinnersCompletionTiming(t *testing.T) {
 // the expected number of frames
 func TestSequentialSpinnersFrameCount(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -230,7 +230,7 @@ func TestSequentialSpinnersFrameCount(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -269,7 +269,7 @@ func TestSequentialSpinnersFrameCount(t *testing.T) {
 // varying message lengths don't cause artifacts
 func TestSequentialSpinnersWithDifferentMessages(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -278,7 +278,7 @@ func TestSequentialSpinnersWithDifferentMessages(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -319,7 +319,7 @@ func TestSequentialSpinnersWithDifferentMessages(t *testing.T) {
 // immediately after creation (before first frame)
 func TestSequentialSpinnersImmediateCompletion(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -328,7 +328,7 @@ func TestSequentialSpinnersImmediateCompletion(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 

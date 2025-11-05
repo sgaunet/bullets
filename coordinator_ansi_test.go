@@ -131,7 +131,7 @@ func (a *ansiCapture) getEvents() []ansiEvent {
 // This test captures the [2A, [3A inconsistency mentioned in the PRD
 func TestConcurrentSpinnersANSISequences(t *testing.T) {
 	capture := &ansiCapture{}
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 	logger := &Logger{
 		writer:            capture,
 		writeMu:           writeMu,
@@ -139,7 +139,7 @@ func TestConcurrentSpinnersANSISequences(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true), // Force TTY mode
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true), // Force TTY mode
 	}
 	logger.coordinator.isTTY = true // Force TTY
 
@@ -195,7 +195,7 @@ func TestConcurrentSpinnersANSISequences(t *testing.T) {
 // TestRenderCompletionNewlineBug specifically tests the newline issue
 func TestRenderCompletionNewlineBug(t *testing.T) {
 	capture := &ansiCapture{}
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 	logger := &Logger{
 		writer:            capture,
 		writeMu:           writeMu,
@@ -203,7 +203,7 @@ func TestRenderCompletionNewlineBug(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -255,7 +255,7 @@ func TestRenderCompletionNewlineBug(t *testing.T) {
 // TestLineNumberDriftAfterCompletion tests the race condition
 func TestLineNumberDriftAfterCompletion(t *testing.T) {
 	capture := &ansiCapture{}
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 	logger := &Logger{
 		writer:            capture,
 		writeMu:           writeMu,
@@ -263,7 +263,7 @@ func TestLineNumberDriftAfterCompletion(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 

@@ -12,7 +12,7 @@ import (
 // TestRapidSpinnerCreation stress tests rapid spinner creation
 func TestRapidSpinnerCreation(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -21,7 +21,7 @@ func TestRapidSpinnerCreation(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -64,7 +64,7 @@ func TestRapidSpinnerCreation(t *testing.T) {
 // TestRapidCompletionRandomTiming tests spinners with random completion times
 func TestRapidCompletionRandomTiming(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -73,7 +73,7 @@ func TestRapidCompletionRandomTiming(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -115,7 +115,7 @@ func TestRapidCompletionRandomTiming(t *testing.T) {
 // TestImmediateCompletionStress tests completing spinners before first frame
 func TestImmediateCompletionStress(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -124,7 +124,7 @@ func TestImmediateCompletionStress(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -150,7 +150,7 @@ func TestImmediateCompletionStress(t *testing.T) {
 // TestRapidSequentialCycles tests rapid create/complete cycles
 func TestRapidSequentialCycles(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -159,7 +159,7 @@ func TestRapidSequentialCycles(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -182,7 +182,7 @@ func TestRapidSequentialCycles(t *testing.T) {
 // TestConcurrentBurstPattern tests bursts of concurrent spinners
 func TestConcurrentBurstPattern(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -191,7 +191,7 @@ func TestConcurrentBurstPattern(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -233,7 +233,7 @@ func TestHighConcurrencyManySpinners(t *testing.T) {
 	}
 
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -242,7 +242,7 @@ func TestHighConcurrencyManySpinners(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -285,7 +285,7 @@ func TestMemoryUsageStress(t *testing.T) {
 	}
 
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -294,7 +294,7 @@ func TestMemoryUsageStress(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -332,7 +332,7 @@ func TestMemoryUsageStress(t *testing.T) {
 // TestLinePositionDriftUnderLoad verifies positions remain stable under stress
 func TestLinePositionDriftUnderLoad(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -341,7 +341,7 @@ func TestLinePositionDriftUnderLoad(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
@@ -389,7 +389,7 @@ func TestLinePositionDriftUnderLoad(t *testing.T) {
 // TestOutputCoherenceUnderStress validates output remains readable
 func TestOutputCoherenceUnderStress(t *testing.T) {
 	capture := NewSpinnerTestCapture()
-	writeMu := sync.Mutex{}
+	writeMu := &sync.Mutex{}
 
 	logger := &Logger{
 		writer:            capture,
@@ -398,7 +398,7 @@ func TestOutputCoherenceUnderStress(t *testing.T) {
 		fields:            make(map[string]interface{}),
 		useSpecialBullets: true,
 		customBullets:     make(map[Level]string),
-		coordinator:       newSpinnerCoordinator(capture, &writeMu, true),
+		coordinator:       newSpinnerCoordinator(capture, writeMu, true),
 	}
 	logger.coordinator.isTTY = true
 
