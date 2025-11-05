@@ -28,23 +28,25 @@ var (
 	debugStartTime time.Time
 	// debugInitialized tracks if debug level has been initialized.
 	debugInitialized bool
-	// debugMu protects debug initialization state.
-	debugMu sync.Mutex
+	// debugMu protects debug initialization state and reads/writes of debug level.
+	debugMu sync.RWMutex
+	// debugTestMode disables Once caching for testing (always re-read env var).
+	debugTestMode bool
 )
 
 // resetDebugLevel resets the debug level initialization state.
 // This is intended for testing purposes only.
-// IMPORTANT: This is not safe for concurrent use. Debug tests should not run in parallel.
+// In test mode, getDebugLevel() will always re-read the environment variable
+// instead of using cached values, making it safe for tests to change BULLETS_DEBUG.
 func resetDebugLevel() {
 	debugMu.Lock()
 	defer debugMu.Unlock()
 
-	if debugInitialized {
-		debugInitialized = false
-		debugLevelOnce = sync.Once{}
-		currentDebugLevel = debugOff
-		debugStartTime = time.Time{}
-	}
+	// Enable test mode to bypass Once caching
+	debugTestMode = true
+	debugInitialized = false
+	currentDebugLevel = debugOff
+	debugStartTime = time.Time{}
 }
 
 // getDebugLevel returns the current debug level based on BULLETS_DEBUG environment variable.
@@ -52,6 +54,34 @@ func resetDebugLevel() {
 // BULLETS_DEBUG=1: basic debugging enabled
 // BULLETS_DEBUG=2: verbose debugging with periodic state dumps
 func getDebugLevel() debugLevel {
+	// Check if we're in test mode (bypass Once caching for thread safety)
+	debugMu.RLock()
+	testMode := debugTestMode
+	debugMu.RUnlock()
+
+	if testMode {
+		// In test mode, always re-read environment variable
+		debugMu.Lock()
+		defer debugMu.Unlock()
+
+		if !debugInitialized {
+			debugStartTime = time.Now()
+			debugInitialized = true
+		}
+
+		envVal := os.Getenv("BULLETS_DEBUG")
+		switch envVal {
+		case "1":
+			currentDebugLevel = debugBasic
+		case "2":
+			currentDebugLevel = debugVerbose
+		default:
+			currentDebugLevel = debugOff
+		}
+		return currentDebugLevel
+	}
+
+	// Normal mode: use Once pattern for caching
 	debugLevelOnce.Do(func() {
 		debugMu.Lock()
 		defer debugMu.Unlock()
@@ -68,6 +98,9 @@ func getDebugLevel() debugLevel {
 		}
 		debugInitialized = true
 	})
+
+	debugMu.RLock()
+	defer debugMu.RUnlock()
 	return currentDebugLevel
 }
 
@@ -88,7 +121,11 @@ func debugLog(component, format string, args ...interface{}) {
 		return
 	}
 
-	elapsed := time.Since(debugStartTime)
+	debugMu.RLock()
+	startTime := debugStartTime
+	debugMu.RUnlock()
+
+	elapsed := time.Since(startTime)
 	timestamp := fmt.Sprintf("%02d:%02d:%02d.%03d",
 		int(elapsed.Hours()),
 		int(elapsed.Minutes())%60,

@@ -4,12 +4,21 @@ import (
 	"bytes"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
+// testDebugMu serializes tests that modify debug state to prevent data races.
+// resetDebugLevel() is not safe for concurrent use, so all tests using it
+// must be serialized.
+var testDebugMu sync.Mutex
+
 // TestDebugMode_Disabled verifies no debug output when debug mode is off.
 func TestDebugMode_Disabled(t *testing.T) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
 	// Ensure debug mode is off
 	os.Unsetenv("BULLETS_DEBUG")
 	resetDebugLevel()
@@ -24,6 +33,9 @@ func TestDebugMode_Disabled(t *testing.T) {
 
 // TestDebugMode_Basic verifies basic debug output when BULLETS_DEBUG=1.
 func TestDebugMode_Basic(t *testing.T) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
 	os.Setenv("BULLETS_DEBUG", "1")
 	defer os.Unsetenv("BULLETS_DEBUG")
 	resetDebugLevel()
@@ -39,6 +51,9 @@ func TestDebugMode_Basic(t *testing.T) {
 
 // TestDebugMode_Verbose verifies verbose debug output when BULLETS_DEBUG=2.
 func TestDebugMode_Verbose(t *testing.T) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
 	os.Setenv("BULLETS_DEBUG", "2")
 	defer os.Unsetenv("BULLETS_DEBUG")
 	resetDebugLevel()
@@ -54,6 +69,9 @@ func TestDebugMode_Verbose(t *testing.T) {
 
 // TestDebugOutput_WithSpinners verifies debug output is generated for spinner operations.
 func TestDebugOutput_WithSpinners(t *testing.T) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
 	os.Setenv("BULLETS_DEBUG", "1")
 	os.Setenv("BULLETS_FORCE_TTY", "1")
 	defer os.Unsetenv("BULLETS_DEBUG")
@@ -76,6 +94,9 @@ func TestDebugOutput_WithSpinners(t *testing.T) {
 
 // TestDebugTimer verifies timer functionality.
 func TestDebugTimer(t *testing.T) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
 	os.Setenv("BULLETS_DEBUG", "1")
 	defer os.Unsetenv("BULLETS_DEBUG")
 	resetDebugLevel()
@@ -98,6 +119,9 @@ func TestDebugTimer(t *testing.T) {
 
 // TestDebugState_Capture verifies state capture functionality.
 func TestDebugState_Capture(t *testing.T) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
 	os.Setenv("BULLETS_DEBUG", "1")
 	os.Setenv("BULLETS_FORCE_TTY", "1")
 	defer os.Unsetenv("BULLETS_DEBUG")
@@ -130,6 +154,9 @@ func TestDebugState_Capture(t *testing.T) {
 
 // TestDebugMap_Rendering verifies debug map can be rendered without panics.
 func TestDebugMap_Rendering(t *testing.T) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
 	os.Setenv("BULLETS_DEBUG", "1")
 	os.Setenv("BULLETS_FORCE_TTY", "1")
 	defer os.Unsetenv("BULLETS_DEBUG")
@@ -154,6 +181,9 @@ func TestDebugMap_Rendering(t *testing.T) {
 
 // TestDebugValidation verifies validation runs in debug mode.
 func TestDebugValidation(t *testing.T) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
 	os.Setenv("BULLETS_DEBUG", "1")
 	os.Setenv("BULLETS_FORCE_TTY", "1")
 	defer os.Unsetenv("BULLETS_DEBUG")
@@ -174,6 +204,9 @@ func TestDebugValidation(t *testing.T) {
 
 // TestDebugPerformance_Disabled verifies minimal overhead when debug is disabled.
 func TestDebugPerformance_Disabled(t *testing.T) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
 	os.Unsetenv("BULLETS_DEBUG")
 	os.Setenv("BULLETS_FORCE_TTY", "1")
 	defer os.Unsetenv("BULLETS_FORCE_TTY")
@@ -201,6 +234,9 @@ func TestDebugPerformance_Disabled(t *testing.T) {
 
 // TestDebugPerformance_Enabled verifies reasonable performance with debug enabled.
 func TestDebugPerformance_Enabled(t *testing.T) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
 	os.Setenv("BULLETS_DEBUG", "1")
 	os.Setenv("BULLETS_FORCE_TTY", "1")
 	defer os.Unsetenv("BULLETS_DEBUG")
@@ -229,6 +265,9 @@ func TestDebugPerformance_Enabled(t *testing.T) {
 
 // BenchmarkDebugLog_Disabled benchmarks debugLog when disabled.
 func BenchmarkDebugLog_Disabled(b *testing.B) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
 	os.Unsetenv("BULLETS_DEBUG")
 	resetDebugLevel()
 
@@ -240,6 +279,9 @@ func BenchmarkDebugLog_Disabled(b *testing.B) {
 
 // BenchmarkDebugLog_Enabled benchmarks debugLog when enabled.
 func BenchmarkDebugLog_Enabled(b *testing.B) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
 	os.Setenv("BULLETS_DEBUG", "1")
 	defer os.Unsetenv("BULLETS_DEBUG")
 	resetDebugLevel()
@@ -252,6 +294,9 @@ func BenchmarkDebugLog_Enabled(b *testing.B) {
 
 // TestDebugLog_Format verifies debug log output format (manual inspection test).
 func TestDebugLog_Format(t *testing.T) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
 	if testing.Short() {
 		t.Skip("Skipping manual inspection test in short mode")
 	}
@@ -268,6 +313,9 @@ func TestDebugLog_Format(t *testing.T) {
 
 // TestDebugModeIntegration verifies full integration of debug mode.
 func TestDebugModeIntegration(t *testing.T) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
 	os.Setenv("BULLETS_DEBUG", "1")
 	os.Setenv("BULLETS_FORCE_TTY", "1")
 	defer os.Unsetenv("BULLETS_DEBUG")

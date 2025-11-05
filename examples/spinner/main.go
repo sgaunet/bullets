@@ -15,9 +15,7 @@ import (
 func main() {
 	// Create a new logger
 	logger := bullets.New(os.Stdout)
-
 	logger.Info("Starting spinner demonstrations")
-	logger.IncreasePadding()
 
 	// Demo 1: Concurrent spinners with different completion methods
 	demoBasicConcurrent(logger)

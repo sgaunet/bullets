@@ -43,13 +43,14 @@ type spinnerUpdate struct {
 // spinnerState tracks the internal state of a spinner in the coordinator.
 // Note: Line numbers are NOT stored here - lineTracker is the single source of truth.
 type spinnerState struct {
-	currentFrame int
-	message      string
-	frames       []string
-	color        string
-	padding      int
-	stopped      bool
-	createdAt    time.Time
+	currentFrame       int
+	message            string
+	frames             []string
+	color              string
+	padding            int
+	stopped            bool
+	createdAt          time.Time
+	firstFrameRendered bool // Track if initial line has been established with newline
 }
 
 // SpinnerCoordinator manages all spinner instances and coordinates their output.
@@ -72,18 +73,20 @@ type spinnerState struct {
 // All coordinator methods are thread-safe and can be called from multiple
 // goroutines. Internal state is protected by mutexes and channel synchronization.
 type SpinnerCoordinator struct {
-	mu          sync.Mutex
-	spinners    map[*Spinner]*spinnerState
-	updateCh    chan spinnerUpdate
-	doneCh      chan struct{}
-	isTTY       bool
-	writer      io.Writer
-	writeMu     *sync.Mutex // Shared write mutex from Logger
-	nextLine    int         // Deprecated: use lineTracker instead
-	running     bool
-	startOnce   sync.Once
-	lineTracker *lineTracker           // New line tracking system
-	ledger      *linePositionLedger    // Audit trail for line operations
+	mu             sync.Mutex
+	spinners       map[*Spinner]*spinnerState
+	updateCh       chan spinnerUpdate
+	doneCh         chan struct{}
+	isTTY          bool
+	writer         io.Writer
+	writeMu        *sync.Mutex // Shared write mutex from Logger
+	nextLine       int         // Deprecated: use lineTracker instead
+	running        bool
+	inSpinnerMode  bool        // Tracks whether we're in spinner mode (vs regular logging mode)
+	startOnce      sync.Once
+	lineTracker    *lineTracker           // New line tracking system
+	ledger         *linePositionLedger    // Audit trail for line operations
+	cursorLine     int         // Current cursor line position (0 = first spinner line)
 }
 
 const (
@@ -108,6 +111,7 @@ func newSpinnerCoordinator(writer io.Writer, writeMu *sync.Mutex, isTTY bool) *S
 		running:     false,
 		lineTracker: tracker,
 		ledger:      ledger,
+		cursorLine:  0, // Cursor starts at first line
 	}
 }
 
@@ -147,15 +151,27 @@ func (c *SpinnerCoordinator) register(s *Spinner) int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Enter spinner mode when registering a spinner
+	wasInSpinnerMode := c.inSpinnerMode
+	if !c.inSpinnerMode {
+		debugLog("MODE_TRANSITION", "Setting inSpinnerMode=true (was false) for spinner %p at line %d", s, lineNum)
+		c.inSpinnerMode = true
+		debugLog("COORDINATOR", "Entering spinner mode")
+	} else {
+		debugLog("MODE_TRANSITION", "Already in spinner mode (inSpinnerMode=true) for spinner %p at line %d", s, lineNum)
+	}
+	_ = wasInSpinnerMode // Suppress unused variable warning if needed
+
 	// Store spinner state WITHOUT line number - lineTracker owns that
 	c.spinners[s] = &spinnerState{
-		currentFrame: 0,
-		message:      s.msg,
-		frames:       s.frames,
-		color:        s.color,
-		padding:      s.padding,
-		stopped:      false,
-		createdAt:    time.Now(),
+		currentFrame:       0,
+		message:            s.msg,
+		frames:             s.frames,
+		color:              s.color,
+		padding:            s.padding,
+		stopped:            false,
+		createdAt:          time.Now(),
+		firstFrameRendered: false, // First frame needs to establish line with newline
 	}
 
 	return lineNum
@@ -297,12 +313,13 @@ func (c *SpinnerCoordinator) updateAnimations() {
 
 	// Collect rendering data while holding lock
 	type renderData struct {
-		spinner      *Spinner
-		lineNumber   int
-		padding      int
-		frame        string
-		color        string
-		message      string
+		spinner            *Spinner
+		lineNumber         int
+		padding            int
+		frame              string
+		color              string
+		message            string
+		isFirstFrame       bool
 	}
 	toRender := make([]renderData, 0, len(c.spinners))
 
@@ -316,14 +333,21 @@ func (c *SpinnerCoordinator) updateAnimations() {
 			}
 
 			state.currentFrame = (state.currentFrame + 1) % len(state.frames)
+			isFirstFrame := !state.firstFrameRendered
 			toRender = append(toRender, renderData{
-				spinner:    spinner,
-				lineNumber: lineNum,
-				padding:    state.padding,
-				frame:      state.frames[state.currentFrame],
-				color:      state.color,
-				message:    state.message,
+				spinner:      spinner,
+				lineNumber:   lineNum,
+				padding:      state.padding,
+				frame:        state.frames[state.currentFrame],
+				color:        state.color,
+				message:      state.message,
+				isFirstFrame: isFirstFrame,
 			})
+
+			// Mark first frame as rendered
+			if isFirstFrame {
+				state.firstFrameRendered = true
+			}
 		}
 	}
 	c.mu.Unlock()
@@ -332,7 +356,7 @@ func (c *SpinnerCoordinator) updateAnimations() {
 
 	// Render all spinners without holding the coordinator lock
 	for _, data := range toRender {
-		c.renderSpinnerFrame(data.lineNumber, data.padding, data.frame, data.color, data.message)
+		c.renderSpinnerFrame(data.lineNumber, data.padding, data.frame, data.color, data.message, data.isFirstFrame)
 	}
 
 	// In verbose debug mode, periodically render debug map
@@ -353,8 +377,8 @@ func (c *SpinnerCoordinator) updateAnimations() {
 }
 
 // renderSpinnerFrame renders a single spinner frame (helper for updateAnimations).
-func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, color, message string) {
-	debugLogVerbose("RENDER", "Rendering frame at line %d: %q", lineNumber, message)
+func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, color, message string, isFirstFrame bool) {
+	debugLogVerbose("RENDER", "Rendering frame at line %d: %q (firstFrame=%v, cursorLine=%d)", lineNumber, message, isFirstFrame, c.cursorLine)
 
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
@@ -363,22 +387,39 @@ func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, 
 	bullet := colorize(color, frame)
 	content := fmt.Sprintf("%s%s %s", indent, bullet, message)
 
-	// Calculate how many lines to move up
-	linesToMove := lineNumber + 1
+	if isFirstFrame {
+		// First frame: print with newline to establish the line
+		debugLogVerbose("RENDER", "First frame: establishing line %d with newline (cursor moves from %d to %d)", lineNumber, c.cursorLine, lineNumber+1)
+		fmt.Fprintf(c.writer, "%s\n", content)
+		// Cursor is now at the line AFTER the one we just printed
+		c.cursorLine = lineNumber + 1
+	} else {
+		// Subsequent frames: update in place using cursor movement
+		// Calculate how many lines to move up from current cursor position
+		linesToMove := c.cursorLine - lineNumber
 
-	if linesToMove > 0 {
-		debugLogVerbose("ANSI", "Moving cursor up %d lines (to line %d)", linesToMove, lineNumber)
-		fmt.Fprintf(c.writer, ansiMoveUp, linesToMove)
-	}
+		if linesToMove > 0 {
+			debugLogVerbose("ANSI", "Moving cursor up %d lines (from %d to %d)", linesToMove, c.cursorLine, lineNumber)
+			fmt.Fprintf(c.writer, ansiMoveUp, linesToMove)
+		} else if linesToMove < 0 {
+			debugLogVerbose("ANSI", "Moving cursor down %d lines (from %d to %d)", -linesToMove, c.cursorLine, lineNumber)
+			fmt.Fprintf(c.writer, ansiMoveDown, -linesToMove)
+		}
 
-	// Clear line, move to column 0, write content
-	debugLogVerbose("ANSI", "Clearing line and writing content")
-	fmt.Fprintf(c.writer, "%s%s%s", ansiClearLine, ansiMoveToCol, content)
+		// Clear line, move to column 0, write content
+		debugLogVerbose("ANSI", "Clearing line and writing content")
+		fmt.Fprintf(c.writer, "%s%s%s", ansiClearLine, ansiMoveToCol, content)
 
-	if linesToMove > 0 {
-		debugLogVerbose("ANSI", "Moving cursor down %d lines and resetting to column 0", linesToMove)
-		fmt.Fprintf(c.writer, ansiMoveDown, linesToMove)
-		fmt.Fprint(c.writer, ansiMoveToCol)
+		// Move cursor back to original position
+		if linesToMove > 0 {
+			debugLogVerbose("ANSI", "Moving cursor down %d lines back to %d", linesToMove, c.cursorLine)
+			fmt.Fprintf(c.writer, ansiMoveDown, linesToMove)
+			fmt.Fprint(c.writer, ansiMoveToCol)
+		} else if linesToMove < 0 {
+			debugLogVerbose("ANSI", "Moving cursor up %d lines back to %d", -linesToMove, c.cursorLine)
+			fmt.Fprintf(c.writer, ansiMoveUp, -linesToMove)
+			fmt.Fprint(c.writer, ansiMoveToCol)
+		}
 	}
 }
 
@@ -403,25 +444,52 @@ func (c *SpinnerCoordinator) renderCompletion(spinner *Spinner, state *spinnerSt
 			return
 		}
 
-		debugLog("COMPLETION", "Completing spinner at line %d", lineNum)
+		debugLog("COMPLETION", "Completing spinner at line %d (cursorLine=%d)", lineNum, c.cursorLine)
+
+		// Check if this is the last active spinner
+		isLastSpinner := c.lineTracker.getActiveLineCount() == 1
 
 		// TTY mode: update the spinner's line with final message
-		linesToMove := lineNum + 1
+		// Calculate movement from current cursor position
+		linesToMove := c.cursorLine - lineNum
 
 		if linesToMove > 0 {
-			debugLog("ANSI", "Moving cursor up %d lines for completion", linesToMove)
+			debugLog("ANSI", "Moving cursor up %d lines for completion (from %d to %d)", linesToMove, c.cursorLine, lineNum)
 			fmt.Fprintf(c.writer, ansiMoveUp, linesToMove)
+		} else if linesToMove < 0 {
+			debugLog("ANSI", "Moving cursor down %d lines for completion (from %d to %d)", -linesToMove, c.cursorLine, lineNum)
+			fmt.Fprintf(c.writer, ansiMoveDown, -linesToMove)
 		}
 
 		// Clear line, write completion message (no newline to avoid buffer modification)
 		debugLog("ANSI", "Writing completion message: %q", formatted)
 		fmt.Fprintf(c.writer, "%s%s%s%s", ansiClearLine, ansiMoveToCol, indent, formatted)
 
+		// Move cursor back to original position
 		if linesToMove > 0 {
-			// Move cursor back down to original position and reset to column 0
-			debugLog("ANSI", "Moving cursor down %d lines and resetting to column 0", linesToMove)
+			debugLog("ANSI", "Moving cursor down %d lines back to %d", linesToMove, c.cursorLine)
 			fmt.Fprintf(c.writer, ansiMoveDown, linesToMove)
 			fmt.Fprint(c.writer, ansiMoveToCol)
+		} else if linesToMove < 0 {
+			debugLog("ANSI", "Moving cursor up %d lines back to %d", -linesToMove, c.cursorLine)
+			fmt.Fprintf(c.writer, ansiMoveUp, -linesToMove)
+			fmt.Fprint(c.writer, ansiMoveToCol)
+		}
+
+		// If this is the last spinner AND we're in spinner mode, emit a newline to transition to regular logging
+		// This prevents adding extra newlines when new spinners are created (they allocate their own lines)
+		c.mu.Lock()
+		shouldExitSpinnerMode := isLastSpinner && c.inSpinnerMode
+		if shouldExitSpinnerMode {
+			debugLog("MODE_TRANSITION", "Setting inSpinnerMode=false (was true) - last spinner completing at line %d", lineNum)
+			c.inSpinnerMode = false
+		}
+		c.mu.Unlock()
+
+		if shouldExitSpinnerMode {
+			debugLog("ANSI", "Last spinner completing, exiting spinner mode and emitting newline (cursorLine stays at %d)", c.cursorLine)
+			fmt.Fprintln(c.writer)
+			// Cursor remains at current position - line numbers are cumulative
 		}
 	} else {
 		// Non-TTY mode: just print the completion message as a new line
