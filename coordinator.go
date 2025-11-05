@@ -142,6 +142,8 @@ func (c *SpinnerCoordinator) register(s *Spinner) int {
 	lineNum := c.lineTracker.allocateLine(s)
 	c.ledger.recordAllocation(s, lineNum)
 
+	debugLog("COORDINATOR", "Registered spinner %p at line %d (msg: %q)", s, lineNum, s.msg)
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -164,6 +166,8 @@ func (c *SpinnerCoordinator) unregister(s *Spinner) {
 	// Get line number from lineTracker (single source of truth) before unregistering
 	lineNum := c.lineTracker.getLineNumber(s)
 
+	debugLog("COORDINATOR", "Unregistering spinner %p from line %d", s, lineNum)
+
 	c.mu.Lock()
 	state, exists := c.spinners[s]
 	if exists {
@@ -179,6 +183,7 @@ func (c *SpinnerCoordinator) unregister(s *Spinner) {
 		}
 	} else {
 		c.mu.Unlock()
+		debugLog("COORDINATOR", "Warning: spinner %p not found in coordinator map", s)
 	}
 }
 
@@ -269,13 +274,24 @@ func (c *SpinnerCoordinator) handleUpdate(update spinnerUpdate) {
 
 // updateAnimations advances animation frames for all active spinners in TTY mode.
 func (c *SpinnerCoordinator) updateAnimations() {
+	timer := startDebugTimer("ANIMATION", "updateAnimations")
+	defer func() {
+		if timer != nil {
+			timer.stop()
+		}
+	}()
+
 	// Validate line positions before rendering
 	invalid := c.lineTracker.validateLinePositions()
 	if len(invalid) > 0 {
 		c.ledger.recordValidation(len(invalid))
+		debugLog("ANIMATION", "Warning: %d invalid line positions detected", len(invalid))
 		// Log validation issues but continue rendering
 		// In production, invalid spinners would be corrected here
 	}
+
+	// Run validation in debug mode
+	c.validateDebugMode()
 
 	c.mu.Lock()
 
@@ -295,6 +311,7 @@ func (c *SpinnerCoordinator) updateAnimations() {
 			// Query lineTracker for authoritative line number
 			lineNum := c.lineTracker.getLineNumber(spinner)
 			if lineNum == -1 {
+				debugLog("ANIMATION", "Skipping spinner %p: not in lineTracker", spinner)
 				continue // Spinner not registered in lineTracker
 			}
 
@@ -311,14 +328,34 @@ func (c *SpinnerCoordinator) updateAnimations() {
 	}
 	c.mu.Unlock()
 
+	debugLogVerbose("ANIMATION", "Rendering %d active spinners", len(toRender))
+
 	// Render all spinners without holding the coordinator lock
 	for _, data := range toRender {
 		c.renderSpinnerFrame(data.lineNumber, data.padding, data.frame, data.color, data.message)
+	}
+
+	// In verbose debug mode, periodically render debug map
+	// Use a static counter to avoid rendering every frame
+	if isVerboseDebug() {
+		c.mu.Lock()
+		frameCount := 0
+		for _, state := range c.spinners {
+			frameCount += state.currentFrame
+		}
+		c.mu.Unlock()
+
+		// Render debug map every ~20 frames (varies based on total frame sum)
+		if frameCount%20 == 0 {
+			c.renderDebugMap()
+		}
 	}
 }
 
 // renderSpinnerFrame renders a single spinner frame (helper for updateAnimations).
 func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, color, message string) {
+	debugLogVerbose("RENDER", "Rendering frame at line %d: %q", lineNumber, message)
+
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
@@ -330,13 +367,16 @@ func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, 
 	linesToMove := lineNumber + 1
 
 	if linesToMove > 0 {
+		debugLogVerbose("ANSI", "Moving cursor up %d lines (to line %d)", linesToMove, lineNumber)
 		fmt.Fprintf(c.writer, ansiMoveUp, linesToMove)
 	}
 
 	// Clear line, move to column 0, write content
+	debugLogVerbose("ANSI", "Clearing line and writing content")
 	fmt.Fprintf(c.writer, "%s%s%s", ansiClearLine, ansiMoveToCol, content)
 
 	if linesToMove > 0 {
+		debugLogVerbose("ANSI", "Moving cursor down %d lines (back to bottom)", linesToMove)
 		fmt.Fprintf(c.writer, ansiMoveDown, linesToMove)
 	}
 }
@@ -344,6 +384,8 @@ func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, 
 
 // renderCompletion renders the final completion message for a spinner.
 func (c *SpinnerCoordinator) renderCompletion(spinner *Spinner, state *spinnerState, message, color, bullet string) {
+	debugLog("COMPLETION", "Rendering completion for spinner %p: %q", spinner, message)
+
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
@@ -355,26 +397,33 @@ func (c *SpinnerCoordinator) renderCompletion(spinner *Spinner, state *spinnerSt
 		lineNum := c.lineTracker.getLineNumber(spinner)
 		if lineNum == -1 {
 			// Spinner not registered, fall back to non-TTY mode
+			debugLog("COMPLETION", "Spinner %p not in lineTracker, falling back to non-TTY mode", spinner)
 			fmt.Fprintf(c.writer, "%s%s\n", indent, formatted)
 			return
 		}
+
+		debugLog("COMPLETION", "Completing spinner at line %d", lineNum)
 
 		// TTY mode: update the spinner's line with final message
 		linesToMove := lineNum + 1
 
 		if linesToMove > 0 {
+			debugLog("ANSI", "Moving cursor up %d lines for completion", linesToMove)
 			fmt.Fprintf(c.writer, ansiMoveUp, linesToMove)
 		}
 
 		// Clear line, write completion message (no newline to avoid buffer modification)
+		debugLog("ANSI", "Writing completion message: %q", formatted)
 		fmt.Fprintf(c.writer, "%s%s%s%s", ansiClearLine, ansiMoveToCol, indent, formatted)
 
 		if linesToMove > 0 {
 			// Move cursor back down to original position
+			debugLog("ANSI", "Moving cursor down %d lines after completion", linesToMove)
 			fmt.Fprintf(c.writer, ansiMoveDown, linesToMove)
 		}
 	} else {
 		// Non-TTY mode: just print the completion message as a new line
+		debugLog("COMPLETION", "Non-TTY mode: printing completion as new line")
 		fmt.Fprintf(c.writer, "%s%s\n", indent, formatted)
 	}
 }
