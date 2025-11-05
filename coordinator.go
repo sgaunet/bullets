@@ -376,8 +376,9 @@ func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, 
 	fmt.Fprintf(c.writer, "%s%s%s", ansiClearLine, ansiMoveToCol, content)
 
 	if linesToMove > 0 {
-		debugLogVerbose("ANSI", "Moving cursor down %d lines (back to bottom)", linesToMove)
+		debugLogVerbose("ANSI", "Moving cursor down %d lines and resetting to column 0", linesToMove)
 		fmt.Fprintf(c.writer, ansiMoveDown, linesToMove)
+		fmt.Fprint(c.writer, ansiMoveToCol)
 	}
 }
 
@@ -417,9 +418,10 @@ func (c *SpinnerCoordinator) renderCompletion(spinner *Spinner, state *spinnerSt
 		fmt.Fprintf(c.writer, "%s%s%s%s", ansiClearLine, ansiMoveToCol, indent, formatted)
 
 		if linesToMove > 0 {
-			// Move cursor back down to original position
-			debugLog("ANSI", "Moving cursor down %d lines after completion", linesToMove)
+			// Move cursor back down to original position and reset to column 0
+			debugLog("ANSI", "Moving cursor down %d lines and resetting to column 0", linesToMove)
 			fmt.Fprintf(c.writer, ansiMoveDown, linesToMove)
+			fmt.Fprint(c.writer, ansiMoveToCol)
 		}
 	} else {
 		// Non-TTY mode: just print the completion message as a new line
