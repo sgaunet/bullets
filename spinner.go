@@ -239,6 +239,7 @@ func (s *Spinner) completeSpinner(msg, color, bullet string) {
 	// Use coordinator's TTY detection for consistency
 	if s.logger.coordinator.isTTY {
 		// TTY mode: Send completion to coordinator
+		// Note: Coordinator handles unregistration internally during completion rendering
 		doneCh := make(chan struct{})
 		s.logger.coordinator.sendUpdate(spinnerUpdate{
 			spinner:      s,
@@ -250,9 +251,6 @@ func (s *Spinner) completeSpinner(msg, color, bullet string) {
 		})
 		// Wait for rendering to complete before returning
 		<-doneCh
-
-		// Unregister spinner after completion to trigger line recalculation
-		s.logger.unregisterSpinner(s)
 	} else {
 		// Non-TTY mode: Print completion message as new line, then unregister
 		indent := strings.Repeat("  ", s.padding)

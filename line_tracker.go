@@ -111,6 +111,7 @@ func (lt *lineTracker) allocateLine(spinner *Spinner) int {
 
 // deallocateLine marks a spinner's line as reserved (not immediately available).
 // The line will be reclaimed during cleanup phase.
+// After deallocation, remaining spinners are compacted to sequential line numbers.
 func (lt *lineTracker) deallocateLine(spinner *Spinner) {
 	lt.mu.Lock()
 	defer lt.mu.Unlock()
@@ -134,6 +135,66 @@ func (lt *lineTracker) deallocateLine(spinner *Spinner) {
 			line.spinnerID = nil
 		}
 	}
+
+	// In TTY mode, do NOT compact lines - we need to preserve gaps for completion messages
+	// Compacting would move remaining spinners to lines that have completion messages,
+	// causing them to overwrite those messages on the next animation frame.
+	// In non-TTY mode, we can compact because there's no screen to preserve.
+	if !lt.isTTY {
+		lt.reallocateLinesInternal()
+	}
+}
+
+// reallocateLinesInternal compacts remaining active spinners to sequential line numbers.
+// This must be called while holding lt.mu.
+func (lt *lineTracker) reallocateLinesInternal() {
+	// Build sorted list of active spinners by their current line numbers
+	type spinnerLine struct {
+		spinner *Spinner
+		lineNum int
+	}
+	spinners := make([]spinnerLine, 0, len(lt.activeSpinners))
+	for spinner, lineNum := range lt.activeSpinners {
+		spinners = append(spinners, spinnerLine{spinner, lineNum})
+	}
+
+	// Sort by line number (ascending)
+	for i := 0; i < len(spinners); i++ {
+		for j := i + 1; j < len(spinners); j++ {
+			if spinners[i].lineNum > spinners[j].lineNum {
+				spinners[i], spinners[j] = spinners[j], spinners[i]
+			}
+		}
+	}
+
+	// Reassign sequential line numbers starting from 0
+	for i, sl := range spinners {
+		if sl.lineNum != i {
+			// Update activeSpinners map
+			lt.activeSpinners[sl.spinner] = i
+
+			// Update line state
+			if oldLine, ok := lt.lines[sl.lineNum]; ok {
+				// Mark old line as reserved (it was just vacated)
+				if lt.isTTY {
+					oldLine.state = lineStateReserved
+					oldLine.reservedAt = time.Now()
+				} else {
+					oldLine.state = lineStateAvailable
+				}
+				oldLine.spinnerID = nil
+			}
+
+			// Update or create new line entry for the new position
+			if lt.lines[i] == nil {
+				lt.lines[i] = &reservedLine{}
+			}
+			lt.lines[i].lineNumber = i
+			lt.lines[i].state = lineStateActive
+			lt.lines[i].spinnerID = sl.spinner
+			lt.lines[i].lastAccessedAt = time.Now()
+		}
+	}
 }
 
 // getLineNumber returns the line number for a given spinner.
@@ -147,6 +208,38 @@ func (lt *lineTracker) getLineNumber(spinner *Spinner) int {
 		return lineNum
 	}
 	return -1
+}
+
+// getMaxLineNumber returns the maximum line number among all active spinners.
+// Returns -1 if there are no active spinners.
+// This is used to determine where the cursor should be positioned (bottom).
+func (lt *lineTracker) getMaxLineNumber() int {
+	lt.mu.Lock()
+	defer lt.mu.Unlock()
+
+	maxLine := -1
+	for _, lineNum := range lt.activeSpinners {
+		if lineNum > maxLine {
+			maxLine = lineNum
+		}
+	}
+	return maxLine
+}
+
+// getMaxLineUsed returns the maximum line number among all lines (active or reserved).
+// Returns -1 if no lines exist.
+// This is used when exiting spinner mode to find where to position the cursor.
+func (lt *lineTracker) getMaxLineUsed() int {
+	lt.mu.Lock()
+	defer lt.mu.Unlock()
+
+	maxLine := -1
+	for lineNum := range lt.lines {
+		if lineNum > maxLine {
+			maxLine = lineNum
+		}
+	}
+	return maxLine
 }
 
 // reclaimReservedLines converts reserved lines to available lines if they've been

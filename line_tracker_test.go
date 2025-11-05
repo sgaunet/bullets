@@ -57,12 +57,15 @@ func TestLineTrackerDeallocation(t *testing.T) {
 		t.Errorf("Expected 1 reserved line, got %d", count)
 	}
 
-	// Verify s1 and s3 still have their original line numbers
+	// Verify s1 and s3 positions after deallocation
+	// In TTY mode, spinners do NOT reallocate to preserve completion message lines
+	// s1 should remain at line 0
 	if num := tracker.getLineNumber(s1); num != line1 {
 		t.Errorf("Expected s1 to still be at line %d, got %d", line1, num)
 	}
+	// s3 should REMAIN at line 2 (NOT shift to line 1, to preserve s2's completion message)
 	if num := tracker.getLineNumber(s3); num != line3 {
-		t.Errorf("Expected s3 to still be at line %d, got %d", line3, num)
+		t.Errorf("Expected s3 to remain at line %d, got %d", line3, num)
 	}
 
 	// s2 should no longer be registered

@@ -279,8 +279,20 @@ func (c *SpinnerCoordinator) handleUpdate(update spinnerUpdate) {
 
 	case updateComplete:
 		state.stopped = true
+		// Get the line number before unregistering
+		lineNum := c.lineTracker.getLineNumber(update.spinner)
+
+		// Delete from coordinator's spinner map
+		delete(c.spinners, update.spinner)
 		c.mu.Unlock()
-		c.renderCompletion(update.spinner, state, update.finalMessage, update.finalColor, update.finalBullet)
+
+		// Unregister from lineTracker (triggers line reallocation for remaining spinners)
+		c.lineTracker.deallocateLine(update.spinner)
+
+		// Now render the completion with the line number we saved
+		// After rendering, cursor will be repositioned based on the NEW active count
+		c.renderCompletionWithLineNum(update.spinner, state, lineNum, update.finalMessage, update.finalColor, update.finalBullet)
+
 		// Signal that rendering is complete
 		if update.doneCh != nil {
 			close(update.doneCh)
@@ -355,8 +367,24 @@ func (c *SpinnerCoordinator) updateAnimations() {
 	debugLogVerbose("ANIMATION", "Rendering %d active spinners", len(toRender))
 
 	// Render all spinners without holding the coordinator lock
+	maxLineNumber := -1
+	hasFirstFrame := false
 	for _, data := range toRender {
 		c.renderSpinnerFrame(data.lineNumber, data.padding, data.frame, data.color, data.message, data.isFirstFrame)
+		if data.isFirstFrame && data.lineNumber > maxLineNumber {
+			maxLineNumber = data.lineNumber
+			hasFirstFrame = true
+		}
+	}
+
+	// After rendering all first frames, ensure cursor is at the bottom
+	// This handles the case where map iteration order causes cursor tracking to be incorrect
+	if hasFirstFrame && maxLineNumber >= 0 {
+		c.writeMu.Lock()
+		// Cursor should be one line below the highest line number
+		c.cursorLine = maxLineNumber + 1
+		debugLogVerbose("ANIMATION", "After first frames, cursor at line %d (max line was %d)", c.cursorLine, maxLineNumber)
+		c.writeMu.Unlock()
 	}
 
 	// In verbose debug mode, periodically render debug map
@@ -424,9 +452,12 @@ func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, 
 }
 
 
-// renderCompletion renders the final completion message for a spinner.
-func (c *SpinnerCoordinator) renderCompletion(spinner *Spinner, state *spinnerState, message, color, bullet string) {
-	debugLog("COMPLETION", "Rendering completion for spinner %p: %q", spinner, message)
+// renderCompletionWithLineNum renders the final completion message for a spinner at the specified line.
+// The line number should be obtained before the spinner is unregistered from lineTracker.
+// This function assumes the spinner has already been unregistered, so it queries lineTracker for the
+// UPDATED active count to calculate the correct cursor position.
+func (c *SpinnerCoordinator) renderCompletionWithLineNum(spinner *Spinner, state *spinnerState, lineNum int, message, color, bullet string) {
+	debugLog("COMPLETION", "Rendering completion for spinner %p at line %d: %q", spinner, lineNum, message)
 
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
@@ -435,22 +466,23 @@ func (c *SpinnerCoordinator) renderCompletion(spinner *Spinner, state *spinnerSt
 	formatted := fmt.Sprintf("%s %s", colorize(color, bullet), message)
 
 	if c.isTTY {
-		// Query lineTracker for authoritative line number
-		lineNum := c.lineTracker.getLineNumber(spinner)
 		if lineNum == -1 {
-			// Spinner not registered, fall back to non-TTY mode
-			debugLog("COMPLETION", "Spinner %p not in lineTracker, falling back to non-TTY mode", spinner)
+			// Invalid line number, fall back to non-TTY mode
+			debugLog("COMPLETION", "Invalid line number for spinner %p, falling back to non-TTY mode", spinner)
 			fmt.Fprintf(c.writer, "%s%s\n", indent, formatted)
 			return
 		}
 
 		debugLog("COMPLETION", "Completing spinner at line %d (cursorLine=%d)", lineNum, c.cursorLine)
 
-		// Check if this is the last active spinner
-		isLastSpinner := c.lineTracker.getActiveLineCount() == 1
+		// Get the number of remaining active spinners (spinner already unregistered)
+		activeCount := c.lineTracker.getActiveLineCount()
+		isLastSpinner := activeCount == 0
+
+		debugLog("COMPLETION", "Active spinner count after unregistration: %d", activeCount)
 
 		// TTY mode: update the spinner's line with final message
-		// Calculate movement from current cursor position
+		// Calculate movement from current cursor position to the target line
 		linesToMove := c.cursorLine - lineNum
 
 		if linesToMove > 0 {
@@ -461,23 +493,41 @@ func (c *SpinnerCoordinator) renderCompletion(spinner *Spinner, state *spinnerSt
 			fmt.Fprintf(c.writer, ansiMoveDown, -linesToMove)
 		}
 
-		// Clear line, write completion message (no newline to avoid buffer modification)
-		debugLog("ANSI", "Writing completion message: %q", formatted)
+		// Clear line and write completion message WITHOUT newline
+		// In TTY mode, we don't use newlines because:
+		// 1. Newlines create actual new lines in terminal output, breaking cursor positioning
+		// 2. The gap in spinner positions (no reallocation) preserves the completion message
+		// 3. Remaining spinners skip over this line when animating
+		debugLog("ANSI", "Writing completion message without newline: %q", formatted)
 		fmt.Fprintf(c.writer, "%s%s%s%s", ansiClearLine, ansiMoveToCol, indent, formatted)
 
-		// Move cursor back to original position
-		if linesToMove > 0 {
-			debugLog("ANSI", "Moving cursor down %d lines back to %d", linesToMove, c.cursorLine)
-			fmt.Fprintf(c.writer, ansiMoveDown, linesToMove)
+		// Cursor is still at lineNum (we didn't write a newline)
+		// Move cursor to the bottom of all remaining active spinners
+		maxActiveLine := c.lineTracker.getMaxLineNumber()
+		targetCursorLine := maxActiveLine + 1 // Cursor goes one line below the last spinner
+
+		// If no spinners remain, leave cursor at current position
+		if maxActiveLine == -1 {
+			targetCursorLine = lineNum
+		}
+
+		// Calculate movement from where we are now (lineNum) to target
+		moveFromHere := targetCursorLine - lineNum
+
+		if moveFromHere > 0 {
+			debugLog("ANSI", "Moving cursor down %d lines to bottom (from %d to %d)", moveFromHere, lineNum, targetCursorLine)
+			fmt.Fprintf(c.writer, ansiMoveDown, moveFromHere)
 			fmt.Fprint(c.writer, ansiMoveToCol)
-		} else if linesToMove < 0 {
-			debugLog("ANSI", "Moving cursor up %d lines back to %d", -linesToMove, c.cursorLine)
-			fmt.Fprintf(c.writer, ansiMoveUp, -linesToMove)
+		} else if moveFromHere < 0 {
+			debugLog("ANSI", "Moving cursor up %d lines to bottom (from %d to %d)", -moveFromHere, lineNum, targetCursorLine)
+			fmt.Fprintf(c.writer, ansiMoveUp, -moveFromHere)
 			fmt.Fprint(c.writer, ansiMoveToCol)
 		}
 
-		// If this is the last spinner AND we're in spinner mode, emit a newline to transition to regular logging
-		// This prevents adding extra newlines when new spinners are created (they allocate their own lines)
+		c.cursorLine = targetCursorLine
+		debugLog("ANSI", "Cursor repositioned to line %d (max active line: %d)", c.cursorLine, maxActiveLine)
+
+		// If this is the last spinner AND we're in spinner mode, exit spinner mode
 		c.mu.Lock()
 		shouldExitSpinnerMode := isLastSpinner && c.inSpinnerMode
 		if shouldExitSpinnerMode {
@@ -486,10 +536,33 @@ func (c *SpinnerCoordinator) renderCompletion(spinner *Spinner, state *spinnerSt
 		}
 		c.mu.Unlock()
 
+		// If we just exited spinner mode, we need to ensure the cursor is on a fresh line
+		// so that subsequent logger.Info() calls don't overwrite the last completion message
 		if shouldExitSpinnerMode {
-			debugLog("ANSI", "Last spinner completing, exiting spinner mode and emitting newline (cursorLine stays at %d)", c.cursorLine)
-			fmt.Fprintln(c.writer)
-			// Cursor remains at current position - line numbers are cumulative
+			// Find the maximum line number among all lines (including reserved ones)
+			// This tells us where the last completion message is
+			maxLineUsed := c.lineTracker.getMaxLineUsed()
+
+			// Move cursor to line after all completions and emit a newline
+			if maxLineUsed >= 0 {
+				moveToLine := maxLineUsed + 1
+				moveDist := moveToLine - c.cursorLine
+
+				if moveDist > 0 {
+					debugLog("ANSI", "Moving cursor down %d lines to fresh line after all completions", moveDist)
+					fmt.Fprintf(c.writer, ansiMoveDown, moveDist)
+					fmt.Fprint(c.writer, ansiMoveToCol)
+				} else if moveDist < 0 {
+					debugLog("ANSI", "Moving cursor up %d lines to fresh line after all completions", -moveDist)
+					fmt.Fprintf(c.writer, ansiMoveUp, -moveDist)
+					fmt.Fprint(c.writer, ansiMoveToCol)
+				}
+
+				// Emit a newline to establish a fresh line for subsequent output
+				fmt.Fprint(c.writer, "\n")
+				c.cursorLine = moveToLine + 1
+				debugLog("MODE_TRANSITION", "Cursor moved to fresh line %d after spinner mode exit", c.cursorLine)
+			}
 		}
 	} else {
 		// Non-TTY mode: just print the completion message as a new line
