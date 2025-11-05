@@ -366,25 +366,23 @@ func (c *SpinnerCoordinator) updateAnimations() {
 
 	debugLogVerbose("ANIMATION", "Rendering %d active spinners", len(toRender))
 
-	// Render all spinners without holding the coordinator lock
-	maxLineNumber := -1
-	hasFirstFrame := false
-	for _, data := range toRender {
-		c.renderSpinnerFrame(data.lineNumber, data.padding, data.frame, data.color, data.message, data.isFirstFrame)
-		if data.isFirstFrame && data.lineNumber > maxLineNumber {
-			maxLineNumber = data.lineNumber
-			hasFirstFrame = true
+	// Sort toRender by line number to ensure first frames are rendered in sequential order.
+	// This is critical because first frames use newlines to establish lines, and printing
+	// them out of order (due to map iteration) causes content misalignment with line numbers.
+	// Subsequent frame updates use ANSI cursor positioning, so order doesn't matter for them.
+	for i := 0; i < len(toRender); i++ {
+		for j := i + 1; j < len(toRender); j++ {
+			if toRender[i].lineNumber > toRender[j].lineNumber {
+				toRender[i], toRender[j] = toRender[j], toRender[i]
+			}
 		}
 	}
 
-	// After rendering all first frames, ensure cursor is at the bottom
-	// This handles the case where map iteration order causes cursor tracking to be incorrect
-	if hasFirstFrame && maxLineNumber >= 0 {
-		c.writeMu.Lock()
-		// Cursor should be one line below the highest line number
-		c.cursorLine = maxLineNumber + 1
-		debugLogVerbose("ANIMATION", "After first frames, cursor at line %d (max line was %d)", c.cursorLine, maxLineNumber)
-		c.writeMu.Unlock()
+	// Render all spinners without holding the coordinator lock
+	// Since toRender is sorted by line number, first frames are rendered in sequential order,
+	// ensuring correct cursor tracking without needing post-render adjustments
+	for _, data := range toRender {
+		c.renderSpinnerFrame(data.lineNumber, data.padding, data.frame, data.color, data.message, data.isFirstFrame)
 	}
 
 	// In verbose debug mode, periodically render debug map
@@ -501,31 +499,17 @@ func (c *SpinnerCoordinator) renderCompletionWithLineNum(spinner *Spinner, state
 		debugLog("ANSI", "Writing completion message without newline: %q", formatted)
 		fmt.Fprintf(c.writer, "%s%s%s%s", ansiClearLine, ansiMoveToCol, indent, formatted)
 
-		// Cursor is still at lineNum (we didn't write a newline)
-		// Move cursor to the bottom of all remaining active spinners
-		maxActiveLine := c.lineTracker.getMaxLineNumber()
-		targetCursorLine := maxActiveLine + 1 // Cursor goes one line below the last spinner
-
-		// If no spinners remain, leave cursor at current position
-		if maxActiveLine == -1 {
-			targetCursorLine = lineNum
-		}
-
-		// Calculate movement from where we are now (lineNum) to target
-		moveFromHere := targetCursorLine - lineNum
-
-		if moveFromHere > 0 {
-			debugLog("ANSI", "Moving cursor down %d lines to bottom (from %d to %d)", moveFromHere, lineNum, targetCursorLine)
-			fmt.Fprintf(c.writer, ansiMoveDown, moveFromHere)
+		// Move cursor back to original position (keep movements balanced)
+		if linesToMove > 0 {
+			debugLog("ANSI", "Moving cursor down %d lines back to original position %d", linesToMove, c.cursorLine)
+			fmt.Fprintf(c.writer, ansiMoveDown, linesToMove)
 			fmt.Fprint(c.writer, ansiMoveToCol)
-		} else if moveFromHere < 0 {
-			debugLog("ANSI", "Moving cursor up %d lines to bottom (from %d to %d)", -moveFromHere, lineNum, targetCursorLine)
-			fmt.Fprintf(c.writer, ansiMoveUp, -moveFromHere)
+		} else if linesToMove < 0 {
+			debugLog("ANSI", "Moving cursor up %d lines back to original position %d", -linesToMove, c.cursorLine)
+			fmt.Fprintf(c.writer, ansiMoveUp, -linesToMove)
 			fmt.Fprint(c.writer, ansiMoveToCol)
 		}
-
-		c.cursorLine = targetCursorLine
-		debugLog("ANSI", "Cursor repositioned to line %d (max active line: %d)", c.cursorLine, maxActiveLine)
+		// Cursor is now back at c.cursorLine
 
 		// If this is the last spinner AND we're in spinner mode, exit spinner mode
 		c.mu.Lock()
@@ -536,33 +520,28 @@ func (c *SpinnerCoordinator) renderCompletionWithLineNum(spinner *Spinner, state
 		}
 		c.mu.Unlock()
 
-		// If we just exited spinner mode, we need to ensure the cursor is on a fresh line
-		// so that subsequent logger.Info() calls don't overwrite the last completion message
+		// After completion, check if cursor needs adjustment
 		if shouldExitSpinnerMode {
-			// Find the maximum line number among all lines (including reserved ones)
-			// This tells us where the last completion message is
+			// Last spinner: move cursor to fresh line below all completions
 			maxLineUsed := c.lineTracker.getMaxLineUsed()
+			targetLine := maxLineUsed + 1
 
-			// Move cursor to line after all completions and emit a newline
-			if maxLineUsed >= 0 {
-				moveToLine := maxLineUsed + 1
-				moveDist := moveToLine - c.cursorLine
-
-				if moveDist > 0 {
-					debugLog("ANSI", "Moving cursor down %d lines to fresh line after all completions", moveDist)
-					fmt.Fprintf(c.writer, ansiMoveDown, moveDist)
-					fmt.Fprint(c.writer, ansiMoveToCol)
-				} else if moveDist < 0 {
-					debugLog("ANSI", "Moving cursor up %d lines to fresh line after all completions", -moveDist)
-					fmt.Fprintf(c.writer, ansiMoveUp, -moveDist)
-					fmt.Fprint(c.writer, ansiMoveToCol)
-				}
-
-				// Emit a newline to establish a fresh line for subsequent output
-				fmt.Fprint(c.writer, "\n")
-				c.cursorLine = moveToLine + 1
-				debugLog("MODE_TRANSITION", "Cursor moved to fresh line %d after spinner mode exit", c.cursorLine)
+			// Move from current position to target
+			moveDist := targetLine - c.cursorLine
+			if moveDist > 0 {
+				debugLog("ANSI", "Moving cursor down %d lines to fresh line %d", moveDist, targetLine)
+				fmt.Fprintf(c.writer, ansiMoveDown, moveDist)
+				fmt.Fprint(c.writer, ansiMoveToCol)
 			}
+
+			// Emit newline to establish fresh line
+			fmt.Fprint(c.writer, "\n")
+			c.cursorLine = targetLine + 1
+			debugLog("MODE_TRANSITION", "Emitted newline, cursor now at line %d", c.cursorLine)
+		} else {
+			// More spinners remain: cursor stays at current position
+			// It will be adjusted by next animation frame if needed
+			debugLog("COMPLETION", "Cursor remains at line %d", c.cursorLine)
 		}
 	} else {
 		// Non-TTY mode: just print the completion message as a new line
