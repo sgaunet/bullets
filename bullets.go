@@ -270,6 +270,15 @@ func (l *Logger) Successf(format string, args ...interface{}) {
 	l.Success(fmt.Sprintf(format, args...))
 }
 
+// Ln prints a blank line without indentation.
+// This method always outputs regardless of the log level.
+func (l *Logger) Ln() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	fmt.Fprintln(l.writer)
+}
+
 // Step logs a step message with timing information.
 // It returns a function that should be called when the step is complete.
 func (l *Logger) Step(msg string) func() {

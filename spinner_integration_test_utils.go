@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// SpinnerTestCapture extends ansiCapture with comprehensive testing utilities
+// SpinnerTestCapture extends ansiCapture with comprehensive testing utilities.
 type SpinnerTestCapture struct {
 	mu            sync.Mutex
 	output        bytes.Buffer
@@ -20,7 +20,7 @@ type SpinnerTestCapture struct {
 	currentCursor CursorPosition
 }
 
-// ANSIEvent represents a parsed ANSI escape sequence or text event
+// ANSIEvent represents a parsed ANSI escape sequence or text event.
 type ANSIEvent struct {
 	Timestamp time.Time
 	Raw       string
@@ -29,9 +29,10 @@ type ANSIEvent struct {
 	Text      string // For text content
 }
 
-// ANSIEventType categorizes ANSI events
+// ANSIEventType categorizes ANSI events.
 type ANSIEventType string
 
+// ANSI event type constants.
 const (
 	EventMoveUp      ANSIEventType = "moveUp"
 	EventMoveDown    ANSIEventType = "moveDown"
@@ -42,26 +43,26 @@ const (
 	EventUnknown     ANSIEventType = "unknown"
 )
 
-// AnimationFrame represents a complete animation frame with all spinner states
+// AnimationFrame represents a complete animation frame with all spinner states.
 type AnimationFrame struct {
 	Timestamp     time.Time
 	SpinnerStates []SpinnerState
 	CursorPos     CursorPosition
 }
 
-// SpinnerState represents the state of a single spinner at a point in time
+// SpinnerState represents the state of a single spinner at a point in time.
 type SpinnerState struct {
 	Line    int
 	Content string
 }
 
-// CursorPosition tracks the current cursor position
+// CursorPosition tracks the current cursor position.
 type CursorPosition struct {
 	Line   int
 	Column int
 }
 
-// NewSpinnerTestCapture creates a new test capture utility
+// NewSpinnerTestCapture creates a new test capture utility.
 func NewSpinnerTestCapture() *SpinnerTestCapture {
 	return &SpinnerTestCapture{
 		events:        make([]ANSIEvent, 0),
@@ -71,22 +72,24 @@ func NewSpinnerTestCapture() *SpinnerTestCapture {
 	}
 }
 
-// Write implements io.Writer and captures output
-func (s *SpinnerTestCapture) Write(p []byte) (n int, err error) {
+// Write implements io.Writer and captures output.
+func (s *SpinnerTestCapture) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	n, err = s.output.Write(p)
+	n, err := s.output.Write(p)
 	if err != nil {
-		return n, err
+		return n, fmt.Errorf("buffer write failed: %w", err)
 	}
 
 	// Parse and track cursor movements
 	s.parseAndTrack(string(p))
-	return n, err
+	return n, nil
 }
 
-// parseAndTrack parses ANSI sequences and tracks cursor position
+// parseAndTrack parses ANSI sequences and tracks cursor position.
+//
+//nolint:cyclop,funcorder // Test utility with inherent complexity
 func (s *SpinnerTestCapture) parseAndTrack(text string) {
 	// Enhanced ANSI pattern matching
 	ansiPattern := regexp.MustCompile(`\033\[(\d+)?([A-Za-z])`)
@@ -110,7 +113,7 @@ func (s *SpinnerTestCapture) parseAndTrack(text string) {
 
 		num := 1
 		if numStr != "" {
-			fmt.Sscanf(numStr, "%d", &num)
+			_, _ = fmt.Sscanf(numStr, "%d", &num)
 		}
 
 		event := ANSIEvent{
@@ -154,7 +157,9 @@ func (s *SpinnerTestCapture) parseAndTrack(text string) {
 	}
 }
 
-// processText handles text content and newlines
+// processText handles text content and newlines.
+//
+//nolint:funcorder // Test utility helper
 func (s *SpinnerTestCapture) processText(text string) {
 	// Split by newlines to track them separately
 	lines := strings.Split(text, "\n")
@@ -183,14 +188,14 @@ func (s *SpinnerTestCapture) processText(text string) {
 	}
 }
 
-// isOnlyANSICodes checks if string contains only ANSI codes
+// isOnlyANSICodes checks if string contains only ANSI codes.
 func isOnlyANSICodes(s string) bool {
 	ansiPattern := regexp.MustCompile(`\033\[[0-9;]*[A-Za-z]`)
 	cleaned := ansiPattern.ReplaceAllString(s, "")
 	return len(strings.TrimSpace(cleaned)) == 0
 }
 
-// GetEvents returns a thread-safe copy of captured events
+// GetEvents returns a thread-safe copy of captured events.
 func (s *SpinnerTestCapture) GetEvents() []ANSIEvent {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -199,7 +204,7 @@ func (s *SpinnerTestCapture) GetEvents() []ANSIEvent {
 	return result
 }
 
-// GetCursorHistory returns the complete cursor movement history
+// GetCursorHistory returns the complete cursor movement history.
 func (s *SpinnerTestCapture) GetCursorHistory() []CursorPosition {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -208,14 +213,16 @@ func (s *SpinnerTestCapture) GetCursorHistory() []CursorPosition {
 	return result
 }
 
-// GetRawOutput returns the complete raw output
+// GetRawOutput returns the complete raw output.
 func (s *SpinnerTestCapture) GetRawOutput() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.output.String()
 }
 
-// ExtractFrames analyzes events to identify distinct animation frames
+// ExtractFrames analyzes events to identify distinct animation frames.
+//
+//nolint:cyclop // Test utility with inherent complexity
 func (s *SpinnerTestCapture) ExtractFrames() []AnimationFrame {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -253,6 +260,9 @@ func (s *SpinnerTestCapture) ExtractFrames() []AnimationFrame {
 			if i > 0 && i < len(s.cursorHistory) {
 				currentFrame.CursorPos = s.cursorHistory[i]
 			}
+
+		case EventClearLine, EventMoveToCol, EventNewline, EventUnknown:
+			// These events don't affect frame extraction
 		}
 	}
 
@@ -265,29 +275,36 @@ func (s *SpinnerTestCapture) ExtractFrames() []AnimationFrame {
 	return frames
 }
 
-// ValidateNoBlankLines checks that no extra blank lines exist in output
+// ValidateNoBlankLines checks that no extra blank lines exist in output.
 func (s *SpinnerTestCapture) ValidateNoBlankLines(t *testing.T) bool {
+	t.Helper()
 	events := s.GetEvents()
 
 	// Look for consecutive newline events (indicates blank lines)
 	consecutiveNewlines := 0
 	for _, event := range events {
-		if event.Type == EventNewline {
+		switch event.Type {
+		case EventNewline:
 			consecutiveNewlines++
 			if consecutiveNewlines > 1 {
 				t.Errorf("Found %d consecutive newlines (blank line detected)", consecutiveNewlines)
 				return false
 			}
-		} else if event.Type == EventText {
+		case EventText:
 			consecutiveNewlines = 0
+		case EventMoveUp, EventMoveDown, EventClearLine, EventMoveToCol, EventUnknown:
+			// These events don't affect blank line detection
 		}
 	}
 
 	return true
 }
 
-// ValidateCursorStability checks that cursor movements are consistent
+// ValidateCursorStability checks that cursor movements are consistent.
+//
+//nolint:gocognit,cyclop // Complex test validation logic
 func (s *SpinnerTestCapture) ValidateCursorStability(t *testing.T) bool {
+	t.Helper()
 	// Check for unexpected cursor drifts
 	// UPDATED: Account for completion events where cursor position changes
 	// - Animation frames: moveUp(N) + moveDown(N) - cursor returns to same position
@@ -297,6 +314,7 @@ func (s *SpinnerTestCapture) ValidateCursorStability(t *testing.T) bool {
 	isCompletionSequence := false
 
 	for i, event := range s.events {
+		//nolint:gocritic,nestif // ifElseChain is more readable here than switch; complex validation logic
 		if event.Type == EventMoveUp {
 			moveStack = append(moveStack, event.Value)
 			// Check if this might be a completion sequence by looking ahead
@@ -364,7 +382,7 @@ func (s *SpinnerTestCapture) ValidateCursorStability(t *testing.T) bool {
 	}
 
 	// Allow some unmatched moves at the end (final cursor position adjustment)
-	if len(moveStack) > 2 {
+	if len(moveStack) > 2 { //nolint:mnd // Threshold for acceptable cursor drift
 		t.Errorf("Unmatched cursor movements: %d moveUp operations without corresponding moveDown", len(moveStack))
 		return false
 	}
@@ -372,7 +390,7 @@ func (s *SpinnerTestCapture) ValidateCursorStability(t *testing.T) bool {
 	return true
 }
 
-// CountEventType counts occurrences of a specific event type
+// CountEventType counts occurrences of a specific event type.
 func (s *SpinnerTestCapture) CountEventType(eventType ANSIEventType) int {
 	count := 0
 	for _, event := range s.events {
@@ -383,7 +401,7 @@ func (s *SpinnerTestCapture) CountEventType(eventType ANSIEventType) int {
 	return count
 }
 
-// GetMoveUpValues extracts all moveUp values for pattern analysis
+// GetMoveUpValues extracts all moveUp values for pattern analysis.
 func (s *SpinnerTestCapture) GetMoveUpValues() []int {
 	values := make([]int, 0)
 	for _, event := range s.events {
@@ -394,7 +412,7 @@ func (s *SpinnerTestCapture) GetMoveUpValues() []int {
 	return values
 }
 
-// GetMoveDownValues extracts all moveDown values for pattern analysis
+// GetMoveDownValues extracts all moveDown values for pattern analysis.
 func (s *SpinnerTestCapture) GetMoveDownValues() []int {
 	values := make([]int, 0)
 	for _, event := range s.events {
@@ -405,8 +423,9 @@ func (s *SpinnerTestCapture) GetMoveDownValues() []int {
 	return values
 }
 
-// DumpEvents prints all captured events for debugging
+// DumpEvents prints all captured events for debugging.
 func (s *SpinnerTestCapture) DumpEvents(t *testing.T, maxEvents int) {
+	t.Helper()
 	events := s.GetEvents()
 	limit := len(events)
 	if maxEvents > 0 && maxEvents < limit {
@@ -414,24 +433,25 @@ func (s *SpinnerTestCapture) DumpEvents(t *testing.T, maxEvents int) {
 	}
 
 	t.Logf("Captured %d total events (showing first %d):", len(events), limit)
-	for i := 0; i < limit; i++ {
+	for i := 0; i < limit; i++ { //nolint:intrange // Backward compatibility with older Go versions
 		event := events[i]
 		switch event.Type {
 		case EventText:
 			t.Logf("  [%d] %s: %q", i, event.Type, event.Text)
 		case EventMoveUp, EventMoveDown:
 			t.Logf("  [%d] %s(%d) [raw: %q]", i, event.Type, event.Value, event.Raw)
-		default:
+		case EventClearLine, EventMoveToCol, EventNewline, EventUnknown:
 			t.Logf("  [%d] %s [raw: %q]", i, event.Type, event.Raw)
 		}
 	}
 }
 
-// ValidateNoPositionDrift checks that line positions remain stable over time
+// ValidateNoPositionDrift checks that line positions remain stable over time.
 func (s *SpinnerTestCapture) ValidateNoPositionDrift(t *testing.T) bool {
+	t.Helper()
 	frames := s.ExtractFrames()
 
-	if len(frames) < 2 {
+	if len(frames) < 2 { //nolint:mnd // Minimum frames needed for drift detection
 		return true // Not enough frames to check drift
 	}
 

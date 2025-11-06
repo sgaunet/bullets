@@ -20,17 +20,17 @@ func main() {
 	// Demo 1: Concurrent spinners with different completion methods
 	demoBasicConcurrent(logger)
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond) //nolint:mnd // Demo pause between examples
 
 	// Demo 2: Rapid spinner creation (edge case: stress test coordination)
 	demoRapidCreation(logger)
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond) //nolint:mnd // Demo pause between examples
 
 	// Demo 3: Out-of-order completion (edge case: later spinners complete first)
 	demoOutOfOrderCompletion(logger)
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond) //nolint:mnd // Demo pause between examples
 
 	// Demo 4: Mixed success/error scenarios
 	demoMixedOutcomes(logger)
@@ -46,6 +46,8 @@ func main() {
 // - Each spinner gets a dedicated terminal line for in-place updates
 // - Spinners can complete in any order; coordinator automatically reflows remaining spinners
 // - Thread-safe by design: all updates go through coordinator channels
+//
+//nolint:dupl // Demo functions have similar structure but demonstrate different concepts
 func demoBasicConcurrent(logger *bullets.Logger) {
 	logger.Info("Demo: Concurrent operations with different outcomes")
 	logger.IncreasePadding()
@@ -110,7 +112,7 @@ func demoBasicConcurrent(logger *bullets.Logger) {
 // - 5 spinners created nearly simultaneously (10ms apart)
 // - Coordinator allocates sequential line numbers (0, 1, 2, 3, 4)
 // - Central animation ticker updates all spinners together
-// - Spinners complete at different times, triggering line reallocation
+// - Spinners complete at different times, triggering line reallocation.
 func demoRapidCreation(logger *bullets.Logger) {
 	logger.Info("Demo: Rapid spinner creation")
 	logger.IncreasePadding()
@@ -157,6 +159,8 @@ func demoRapidCreation(logger *bullets.Logger) {
 // - Spinner 2 completes third (now line 1), triggers reallocation
 // - Spinner 1 completes last (now line 0)
 // - LineTracker maintains consistency throughout
+//
+//nolint:dupl // Demo functions have similar structure but demonstrate different concepts
 func demoOutOfOrderCompletion(logger *bullets.Logger) {
 	logger.Info("Demo: Out-of-order completion")
 	logger.IncreasePadding()
@@ -212,7 +216,7 @@ func demoOutOfOrderCompletion(logger *bullets.Logger) {
 // - 6 spinners with different completion methods
 // - Completions interleaved in time
 // - Each completion type handled consistently by coordinator
-// - Line positions maintained correctly regardless of outcome type
+// - Line positions maintained correctly regardless of outcome type.
 func demoMixedOutcomes(logger *bullets.Logger) {
 	logger.Info("Demo: Mixed success/error patterns")
 	logger.IncreasePadding()
@@ -231,37 +235,37 @@ func demoMixedOutcomes(logger *bullets.Logger) {
 	// Mix of different completion types at different times
 	go func() {
 		defer wg.Done()
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond) //nolint:mnd // Demo timing
 		s1.Success("Operation A succeeded")
 	}()
 
 	go func() {
 		defer wg.Done()
-		time.Sleep(800 * time.Millisecond)
+		time.Sleep(800 * time.Millisecond) //nolint:mnd // Demo timing
 		s2.Error("Operation B failed: timeout")
 	}()
 
 	go func() {
 		defer wg.Done()
-		time.Sleep(1100 * time.Millisecond)
+		time.Sleep(1100 * time.Millisecond) //nolint:mnd // Demo timing
 		s3.Success("Operation C succeeded")
 	}()
 
 	go func() {
 		defer wg.Done()
-		time.Sleep(1400 * time.Millisecond)
+		time.Sleep(1400 * time.Millisecond) //nolint:mnd // Demo timing
 		s4.Replace("Operation D: custom completion")
 	}()
 
 	go func() {
 		defer wg.Done()
-		time.Sleep(1700 * time.Millisecond)
+		time.Sleep(1700 * time.Millisecond) //nolint:mnd // Demo timing
 		s5.Error("Operation E failed: connection refused")
 	}()
 
 	go func() {
 		defer wg.Done()
-		time.Sleep(2000 * time.Millisecond)
+		time.Sleep(2000 * time.Millisecond) //nolint:mnd // Demo timing
 		s6.Success("Operation F succeeded")
 	}()
 

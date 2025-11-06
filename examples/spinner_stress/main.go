@@ -85,15 +85,15 @@ func main() {
 
 // generateTasks creates a set of simulated tasks with varying characteristics.
 func generateTasks(count int) []Task {
-	rand.Seed(time.Now().UnixNano())
+	rng := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // Example code, not cryptographic
 
 	tasks := make([]Task, count)
-	for i := 0; i < count; i++ {
+	for i := 0; i < count; i++ { //nolint:intrange // Backward compatibility with older Go versions
 		// Random duration between 100ms and 3s
-		duration := time.Duration(100+rand.Intn(2900)) * time.Millisecond //nolint:mnd,gosec // Random task duration
+		duration := time.Duration(100+rng.Intn(2900)) * time.Millisecond //nolint:mnd // Random task duration
 
 		// 80% success rate
-		success := rand.Float32() < 0.8 //nolint:mnd,gosec // 80% success rate
+		success := rng.Float32() < 0.8 //nolint:mnd // 80% success rate
 
 		tasks[i] = Task{
 			ID:       i + 1,
@@ -115,8 +115,8 @@ func executeTask(task Task, spinner *bullets.Spinner, wg *sync.WaitGroup) {
 
 	// Complete with appropriate status
 	if task.Success {
-		spinner.Success(fmt.Sprintf("%s completed (%v)", task.Name, task.Duration.Round(10*time.Millisecond)))
+		spinner.Success(fmt.Sprintf("%s completed (%v)", task.Name, task.Duration.Round(10*time.Millisecond))) //nolint:mnd // Rounding milliseconds
 	} else {
-		spinner.Error(fmt.Sprintf("%s failed after %v", task.Name, task.Duration.Round(10*time.Millisecond)))
+		spinner.Error(fmt.Sprintf("%s failed after %v", task.Name, task.Duration.Round(10*time.Millisecond))) //nolint:mnd // Rounding milliseconds
 	}
 }

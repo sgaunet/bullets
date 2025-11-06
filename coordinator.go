@@ -139,8 +139,8 @@ func newSpinnerCoordinator(writer io.Writer, writeMu *sync.Mutex, isTTY bool) *S
 		running:     false,
 		lineTracker: tracker,
 		ledger:      ledger,
-		cursorCh:    make(chan cursorRequest, 100), // Buffered channel for cursor requests
-		cursorLine:  0,                             // Cursor starts at first line
+		cursorCh:    make(chan cursorRequest, 100), //nolint:mnd // Cursor request channel buffer size
+		cursorLine:  0,                              // Cursor starts at first line
 	}
 
 	// Start cursor service goroutine
@@ -154,6 +154,8 @@ func newSpinnerCoordinator(writer io.Writer, writeMu *sync.Mutex, isTTY bool) *S
 //
 // All cursor movements and writes must go through this service via the cursorCh channel.
 // This eliminates race conditions and cursor position drift.
+//
+//nolint:cyclop // Switch-based request handler with inherent complexity
 func (c *SpinnerCoordinator) processCursorRequests() {
 	for req := range c.cursorCh {
 		// Lock writeMu for exclusive access to the writer
@@ -294,6 +296,8 @@ func (c *SpinnerCoordinator) start() {
 // getSpinnerLineNumber returns the line number for a spinner from the lineTracker.
 // Returns -1 if the spinner is not registered.
 // This is the authoritative method for querying line positions.
+//
+//nolint:unused // Kept for API compatibility and debugging
 func (c *SpinnerCoordinator) getSpinnerLineNumber(s *Spinner) int {
 	return c.lineTracker.getLineNumber(s)
 }
@@ -472,6 +476,8 @@ func (c *SpinnerCoordinator) handleUpdate(update spinnerUpdate) {
 }
 
 // updateAnimations advances animation frames for all active spinners in TTY mode.
+//
+//nolint:cyclop // Central animation loop with inherent complexity
 func (c *SpinnerCoordinator) updateAnimations() {
 	timer := startDebugTimer("ANIMATION", "updateAnimations")
 	defer func() {
@@ -575,6 +581,8 @@ func (c *SpinnerCoordinator) updateAnimations() {
 
 // renderSpinnerFrame renders a single spinner frame (helper for updateAnimations).
 // Uses cursor service for atomic, ordered terminal operations.
+//
+//nolint:cyclop // Handles TTY/non-TTY and first/subsequent frame logic
 func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, color, message string, isFirstFrame bool) {
 	cursorPos := c.getCursorPosition()
 
@@ -607,23 +615,23 @@ func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, 
 			debugLogVerbose("RENDER", "First frame (TTY): allocated line %d beyond cursor %d, rendering at cursor to avoid gaps", absoluteTerminalLine, cursorPos)
 			c.writeLine(content)
 			return
-		} else if absoluteTerminalLine == cursorPos {
+		}
+		if absoluteTerminalLine == cursorPos {
 			// Cursor at target line, write with newline to establish
 			debugLogVerbose("RENDER", "First frame (TTY): establishing line %d at cursor position", absoluteTerminalLine)
 			c.writeLine(content)
 			return
-		} else {
-			// Target line is above cursor (already exists), move up and write
-			debugLogVerbose("RENDER", "First frame (TTY): line %d exists above cursor %d, using cursor positioning", absoluteTerminalLine, cursorPos)
-			linesToMove := cursorPos - absoluteTerminalLine
-			c.moveCursorUp(linesToMove)
-			c.writeLine(content) // This advances cursor to absoluteTerminalLine + 1
-			// Move back to original position (but +1 because writeLine advanced cursor)
-			if absoluteTerminalLine + 1 < cursorPos {
-				c.moveCursorDown(cursorPos - (absoluteTerminalLine + 1))
-			}
-			return
 		}
+		// Target line is above cursor (already exists), move up and write
+		debugLogVerbose("RENDER", "First frame (TTY): line %d exists above cursor %d, using cursor positioning", absoluteTerminalLine, cursorPos)
+		linesToMove := cursorPos - absoluteTerminalLine
+		c.moveCursorUp(linesToMove)
+		c.writeLine(content) // This advances cursor to absoluteTerminalLine + 1
+		// Move back to original position (but +1 because writeLine advanced cursor)
+		if absoluteTerminalLine+1 < cursorPos {
+			c.moveCursorDown(cursorPos - (absoluteTerminalLine + 1))
+		}
+		return
 	}
 
 	// Subsequent frames: use cursor positioning (line guaranteed to exist)
@@ -649,6 +657,8 @@ func (c *SpinnerCoordinator) renderSpinnerFrame(lineNumber, padding int, frame, 
 
 // renderCompletionWithLineNum renders the final completion message for a spinner at the specified line.
 // Uses cursor service for atomic, ordered terminal operations.
+//
+//nolint:nestif // Handles TTY/non-TTY and various edge cases
 func (c *SpinnerCoordinator) renderCompletionWithLineNum(spinner *Spinner, state *spinnerState, lineNum int, message, color, bullet string) {
 	debugLog("COMPLETION", "Rendering completion for spinner %p at relative line %d: %q", spinner, lineNum, message)
 
@@ -682,6 +692,7 @@ func (c *SpinnerCoordinator) renderCompletionWithLineNum(spinner *Spinner, state
 		// Check if spinner rendered its first frame
 		// If absoluteTerminalLine > cursorPos, the line was never physically created in the terminal
 		// because the spinner completed before its first frame rendered
+		//nolint:gocritic // ifElseChain is more readable here than switch
 		if absoluteTerminalLine > cursorPos {
 			// Spinner completed before first frame - line doesn't exist in terminal
 			// Render completion at current cursor position instead of creating gap lines
@@ -750,10 +761,10 @@ type stateInconsistency struct {
 //
 // Thread-safe: Can be called concurrently with other operations.
 func (c *SpinnerCoordinator) validateCoordinatorState() []stateInconsistency {
-	var inconsistencies []stateInconsistency
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	inconsistencies := make([]stateInconsistency, 0, len(c.spinners))
 
 	// Check 1: Every spinner in coordinator.spinners should have a line in lineTracker
 	for spinner, state := range c.spinners {
@@ -798,7 +809,7 @@ func (c *SpinnerCoordinator) validateCoordinatorState() []stateInconsistency {
 // Invariants checked:
 // - Active spinner count matches between coordinator and lineTracker
 // - No nil spinner references in maps
-// - All frame indices are within valid ranges
+// - All frame indices are within valid ranges.
 func (c *SpinnerCoordinator) checkStateInvariants() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()

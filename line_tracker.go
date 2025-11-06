@@ -169,7 +169,7 @@ func (lt *lineTracker) reallocateLinesInternal() {
 
 	// Reassign sequential line numbers starting from 0
 	for i, sl := range spinners {
-		if sl.lineNum != i {
+		if sl.lineNum != i { //nolint:nestif // Line reallocation logic with inherent complexity
 			// Update activeSpinners map
 			lt.activeSpinners[sl.spinner] = i
 
@@ -213,6 +213,8 @@ func (lt *lineTracker) getLineNumber(spinner *Spinner) int {
 // getMaxLineNumber returns the maximum line number among all active spinners.
 // Returns -1 if there are no active spinners.
 // This is used to determine where the cursor should be positioned (bottom).
+//
+//nolint:unused // Kept for future cursor positioning logic
 func (lt *lineTracker) getMaxLineNumber() int {
 	lt.mu.Lock()
 	defer lt.mu.Unlock()
@@ -229,6 +231,8 @@ func (lt *lineTracker) getMaxLineNumber() int {
 // getMaxLineUsed returns the maximum line number among all lines (active or reserved).
 // Returns -1 if no lines exist.
 // This is used when exiting spinner mode to find where to position the cursor.
+//
+//nolint:unused // Kept for spinner mode exit logic
 func (lt *lineTracker) getMaxLineUsed() int {
 	lt.mu.Lock()
 	defer lt.mu.Unlock()
@@ -298,7 +302,7 @@ func (lt *lineTracker) validateLinePositions() []*Spinner {
 
 // getActiveLineCount returns the number of lines currently in active state.
 // This function is primarily used for testing and debugging.
-func (lt *lineTracker) getActiveLineCount() int { //nolint:unused // Used in tests
+func (lt *lineTracker) getActiveLineCount() int {
 	lt.mu.Lock()
 	defer lt.mu.Unlock()
 

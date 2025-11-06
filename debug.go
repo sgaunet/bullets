@@ -38,6 +38,8 @@ var (
 // This is intended for testing purposes only.
 // In test mode, getDebugLevel() will always re-read the environment variable
 // instead of using cached values, making it safe for tests to change BULLETS_DEBUG.
+//
+//nolint:unused // Kept for testing purposes
 func resetDebugLevel() {
 	debugMu.Lock()
 	defer debugMu.Unlock()
@@ -52,7 +54,7 @@ func resetDebugLevel() {
 // getDebugLevel returns the current debug level based on BULLETS_DEBUG environment variable.
 // BULLETS_DEBUG=0 or unset: debugging disabled
 // BULLETS_DEBUG=1: basic debugging enabled
-// BULLETS_DEBUG=2: verbose debugging with periodic state dumps
+// BULLETS_DEBUG=2: verbose debugging with periodic state dumps.
 func getDebugLevel() debugLevel {
 	// Check if we're in test mode (bypass Once caching for thread safety)
 	debugMu.RLock()
@@ -115,7 +117,9 @@ func isVerboseDebug() bool {
 }
 
 // debugLog writes a debug message to stderr with timestamp and component information.
-// Only outputs if debugging is enabled. Format: [HH:MM:SS.mmm] [component] message
+// Only outputs if debugging is enabled. Format: [HH:MM:SS.mmm] [component] message.
+//
+//nolint:goprintffuncname // Printf-like function used internally
 func debugLog(component, format string, args ...interface{}) {
 	if !isDebugEnabled() {
 		return
@@ -128,42 +132,22 @@ func debugLog(component, format string, args ...interface{}) {
 	elapsed := time.Since(startTime)
 	timestamp := fmt.Sprintf("%02d:%02d:%02d.%03d",
 		int(elapsed.Hours()),
-		int(elapsed.Minutes())%60,
-		int(elapsed.Seconds())%60,
-		elapsed.Milliseconds()%1000)
+		int(elapsed.Minutes())%60,  //nolint:mnd // Minutes per hour
+		int(elapsed.Seconds())%60,  //nolint:mnd // Seconds per minute
+		elapsed.Milliseconds()%1000) //nolint:mnd // Milliseconds per second
 
 	message := fmt.Sprintf(format, args...)
 	fmt.Fprintf(os.Stderr, "[%s] [%s] %s\n", timestamp, component, message)
 }
 
 // debugLogVerbose writes a verbose debug message, only if verbose debugging is enabled.
+//
+//nolint:goprintffuncname // Printf-like function used internally
 func debugLogVerbose(component, format string, args ...interface{}) {
 	if !isVerboseDebug() {
 		return
 	}
 	debugLog(component, format, args...)
-}
-
-// formatANSISequence returns a human-readable description of an ANSI escape sequence.
-func formatANSISequence(sequence string, args ...interface{}) string {
-	formatted := fmt.Sprintf(sequence, args...)
-
-	// Decode common ANSI sequences
-	description := ""
-	switch sequence {
-	case ansiMoveUp:
-		description = fmt.Sprintf("move cursor up %d lines", args[0])
-	case ansiMoveDown:
-		description = fmt.Sprintf("move cursor down %d lines", args[0])
-	case ansiClearLine:
-		description = "clear current line"
-	case ansiMoveToCol:
-		description = "move to column 0"
-	default:
-		description = "unknown sequence"
-	}
-
-	return fmt.Sprintf("%q (%s)", formatted, description)
 }
 
 // debugTimer helps measure operation timing for performance debugging.
@@ -284,7 +268,7 @@ func (c *SpinnerCoordinator) validateDebugMode() {
 	if len(inconsistencies) > 0 {
 		errorCount := 0
 		for _, inc := range inconsistencies {
-			if inc.severity == "error" {
+			if inc.severity == "error" { //nolint:goconst // Severity level string
 				debugLog("VALIDATION", "ERROR: %s", inc.description)
 				errorCount++
 			} else {
