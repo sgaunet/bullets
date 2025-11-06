@@ -11,6 +11,8 @@
 
 A colorful terminal logger for Go with bullet-style output, inspired by [goreleaser](https://github.com/goreleaser/goreleaser)'s beautiful CLI output.
 
+> **⚠️ Pre-v1.0 Notice:** This library is currently in v0.x and under active development. The API may undergo breaking changes between minor versions until v1.0 is released. Please vendor your dependencies or pin to a specific version if you need API stability.
+
 ## Features
 
 - 🎨 Colorful terminal output with ANSI colors
@@ -24,7 +26,7 @@ A colorful terminal logger for Go with bullet-style output, inspired by [gorelea
 - 📊 **Progress indicators** - Show progress bars within bullets
 - 🎯 **Batch operations** - Update multiple bullets simultaneously
 - 🧵 Thread-safe operations
-- 🚀 Zero external dependencies (stdlib only)
+- 🚀 Minimal dependencies (only golang.org/x/term for TTY detection)
 
 ## Demo
 
@@ -190,6 +192,31 @@ time.Sleep(4 * time.Second)
 - Channel-based communication ensures thread safety
 - Line numbers automatically recalculated when spinners complete
 - Set `BULLETS_FORCE_TTY=1` for reliable TTY detection in `go run`
+
+**Important: Spinner Groups**
+
+When using spinners in groups, **all spinners in a group must be completed** (via `Success()`, `Error()`, `Stop()`, or `Replace()`) before creating new spinners or using other logger functions. This ensures proper line management and prevents visual artifacts:
+
+```go
+// First group of spinners
+s1 := logger.Spinner("Task 1")
+s2 := logger.Spinner("Task 2")
+// ... work ...
+s1.Success("Task 1 done")
+s2.Success("Task 2 done")  // Complete ALL spinners in the group
+
+// Now safe to create a new group or use regular logging
+logger.Info("Starting next phase")
+
+// Second group of spinners
+s3 := logger.Spinner("Task 3")
+s4 := logger.Spinner("Task 4")
+// ... work ...
+s3.Success("Task 3 done")
+s4.Success("Task 4 done")
+```
+
+The coordinator tracks spinner mode sessions - completing all spinners properly exits the session and resets line tracking for the next group.
 
 ### Updatable Bullets
 
@@ -480,7 +507,7 @@ Unlike general-purpose loggers, `bullets` focuses on:
 - Customizable bullet symbols
 - Simple API for CLI applications
 - Zero configuration needed
-- No external dependencies
+- Minimal dependencies (only golang.org/x/term)
 
 ## License
 
