@@ -520,3 +520,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Acknowledgments
 
 Inspired by the beautiful CLI output of [goreleaser](https://github.com/goreleaser/goreleaser) and [caarlos0/log](https://github.com/caarlos0/log).
+
+## Development
+
+This project has been extensively developed with AI assistance, leveraging Claude Code and other AI tools for implementation, testing, documentation, and bug fixes. The AI-assisted development approach enabled rapid iteration on complex features like the spinner coordination system and comprehensive test coverage.
