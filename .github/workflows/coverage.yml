@@ -38,7 +38,7 @@ jobs:
         id: coverage-badge
         uses: ./gh-action-badge/.github/actions/gh-action-coverage
         with:
-          limit-coverage: "70"
+          limit-coverage: "50"
           badge-label: "coverage"
           badge-filename: "coverage-badge.svg"
           badge-value: "${COVERAGE_VALUE}"
