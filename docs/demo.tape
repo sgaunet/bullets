@@ -53,4 +53,6 @@ Enter
 Sleep 500ms  
 Type "go run examples/updatable/main.go"
 Enter
+Type "go run ./examples/spinner_stress/main.go"
+Enter
 Sleep 30000ms
