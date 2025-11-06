@@ -55,8 +55,11 @@ func newSpinner(logger *Logger, msg string, frames []string, _ string, interval 
 
 	// Detect TTY capability
 	isTTY := false
-	if os.Getenv("BULLETS_FORCE_TTY") == "1" {
+	forceTTY := os.Getenv("BULLETS_FORCE_TTY")
+	if forceTTY == "1" {
 		isTTY = true
+	} else if forceTTY == "0" {
+		isTTY = false
 	} else if f, ok := logger.writer.(*os.File); ok {
 		isTTY = term.IsTerminal(int(f.Fd()))
 	}
@@ -83,10 +86,7 @@ func newSpinner(logger *Logger, msg string, frames []string, _ string, interval 
 	s.mu.Unlock()
 
 	if isTTY {
-		// TTY mode: allocate a line for this spinner and start animation
-		logger.writeMu.Lock()
-		fmt.Fprintln(logger.writer)
-		logger.writeMu.Unlock()
+		// TTY mode: coordinator handles line allocation and animation rendering
 		go s.animate()
 	} else {
 		// Non-TTY mode: print static message immediately (no animation)
@@ -238,8 +238,8 @@ func (s *Spinner) completeSpinner(msg, color, bullet string) {
 
 	// Use coordinator's TTY detection for consistency
 	if s.logger.coordinator.isTTY {
-		// TTY mode: Send completion to coordinator (while still registered)
-		// Don't unregister to maintain stable line positions for other spinners
+		// TTY mode: Send completion to coordinator
+		// Note: Coordinator handles unregistration internally during completion rendering
 		doneCh := make(chan struct{})
 		s.logger.coordinator.sendUpdate(spinnerUpdate{
 			spinner:      s,

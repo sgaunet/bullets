@@ -86,7 +86,7 @@ func main() {
 	done()              // This will include duration info
 
 	// Demonstrate spinner functionality
-	logger.Info("")
+	logger.Ln()
 	logger.Info("spinner examples:")
 	logger.IncreasePadding()
 
@@ -119,7 +119,7 @@ func main() {
 
 	logger.DecreasePadding()
 
-	logger.Info("")
+	logger.Ln()
 	logger.Success("all examples completed!")
 }
 

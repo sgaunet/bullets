@@ -286,9 +286,10 @@ func TestSpinnerLineNumberUpdate(t *testing.T) {
 	// Stop the middle spinner
 	spinner2.Stop()
 
-	// Verify spinner3's line number was updated
-	if spinner3.lineNumber != 1 {
-		t.Errorf("Expected spinner3 lineNumber to be updated to 1, got %d", spinner3.lineNumber)
+	// With the new stable line tracking system, spinner3's line number should NOT change
+	// Line numbers remain stable to prevent position drift and overwriting completion messages
+	if spinner3.lineNumber != 2 {
+		t.Errorf("Expected spinner3 lineNumber to remain at 2, got %d", spinner3.lineNumber)
 	}
 
 	// Verify only 2 spinners remain in coordinator

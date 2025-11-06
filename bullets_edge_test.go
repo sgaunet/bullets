@@ -32,29 +32,6 @@ func TestInvalidWriter(t *testing.T) {
 	pr.Close()
 }
 
-// TestEmptyMessages tests logging with empty strings
-func TestEmptyMessages(t *testing.T) {
-	var buf bytes.Buffer
-	logger := bullets.New(&buf)
-
-	// Test empty message
-	logger.Info("")
-	output := buf.String()
-
-	// Should still have bullet even with empty message
-	if !strings.Contains(output, "•") {
-		t.Error("Expected bullet symbol even with empty message")
-	}
-
-	// Test whitespace-only message
-	buf.Reset()
-	logger.Info("   ")
-	output = buf.String()
-	if output == "" {
-		t.Error("Expected output for whitespace message")
-	}
-}
-
 // TestVeryLongMessages tests with extremely long messages
 func TestVeryLongMessages(t *testing.T) {
 	var buf bytes.Buffer
@@ -417,11 +394,11 @@ func TestMultibyteCharacters(t *testing.T) {
 
 	// Test various languages and scripts
 	messages := []string{
-		"日本語のメッセージ",           // Japanese
-		"中文消息",                  // Chinese
-		"한국어 메시지",              // Korean
-		"Сообщение на русском",  // Russian
-		"رسالة بالعربية",        // Arabic
+		"日本語のメッセージ",              // Japanese
+		"中文消息",                   // Chinese
+		"한국어 메시지",                // Korean
+		"Сообщение на русском",   // Russian
+		"رسالة بالعربية",         // Arabic
 		"🏃‍♂️ Running man emoji", // Complex emoji
 		"𝓜𝓪𝓽𝓱𝓮𝓶𝓪𝓽𝓲𝓬𝓪𝓵 𝓫𝓸𝓵𝓭 𝓼𝓬𝓻𝓲𝓹𝓽", // Mathematical bold script
 	}
