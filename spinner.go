@@ -215,6 +215,40 @@ func (s *Spinner) Replace(msg string) {
 	s.completeSpinner(msg, cyan, bullet)
 }
 
+// UpdateText updates the spinner's message text while keeping it running.
+//
+// The new message will be displayed on the next animation frame.
+// In TTY mode, the spinner line is updated in-place. In non-TTY mode,
+// the update is silently ignored (no additional output).
+//
+// Calling UpdateText() on a stopped spinner is safe (idempotent).
+// Multiple calls to UpdateText() simply override the message with the latest value.
+//
+// Example:
+//
+//	spinner := logger.Spinner("Processing items")
+//	for i := 1; i <= 100; i++ {
+//	    spinner.UpdateText(fmt.Sprintf("Processing items (%d/100)", i))
+//	    time.Sleep(10 * time.Millisecond)
+//	}
+//	spinner.Success("All items processed")
+//
+// Thread-safe: Can be called from any goroutine.
+func (s *Spinner) UpdateText(msg string) {
+	s.mu.Lock()
+	if s.stopped {
+		s.mu.Unlock()
+		return
+	}
+	s.mu.Unlock()
+
+	s.logger.coordinator.sendUpdate(spinnerUpdate{
+		spinner:    s,
+		updateType: updateMessage,
+		message:    msg,
+	})
+}
+
 // stopAnimation stops the spinner animation goroutine without unregistering.
 func (s *Spinner) stopAnimation() {
 	s.mu.Lock()

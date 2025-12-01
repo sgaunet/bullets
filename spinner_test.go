@@ -303,3 +303,121 @@ func TestSpinnerLineNumberUpdate(t *testing.T) {
 	spinner1.Stop()
 	spinner3.Stop()
 }
+
+func TestSpinnerUpdateText(t *testing.T) {
+	var buf bytes.Buffer
+	logger := New(&buf)
+
+	spinner := logger.Spinner("Processing 0%")
+	time.Sleep(100 * time.Millisecond)
+
+	// Update the text a few times
+	spinner.UpdateText("Processing 25%")
+	time.Sleep(100 * time.Millisecond)
+
+	spinner.UpdateText("Processing 50%")
+	time.Sleep(100 * time.Millisecond)
+
+	spinner.UpdateText("Processing 75%")
+	time.Sleep(100 * time.Millisecond)
+
+	spinner.Success("Processing 100% - Complete")
+
+	output := buf.String()
+	if !strings.Contains(output, "Complete") {
+		t.Errorf("Expected output to contain 'Complete', got %q", output)
+	}
+
+	if !spinner.stopped {
+		t.Error("Expected spinner to be stopped after Success()")
+	}
+}
+
+func TestSpinnerUpdateTextAfterStop(t *testing.T) {
+	var buf bytes.Buffer
+	logger := New(&buf)
+
+	spinner := logger.Spinner("processing")
+	time.Sleep(50 * time.Millisecond)
+
+	// Stop the spinner
+	spinner.Stop()
+
+	// Verify spinner is stopped
+	if !spinner.stopped {
+		t.Error("Expected spinner to be stopped")
+	}
+
+	// UpdateText should be idempotent (no panic, no error)
+	spinner.UpdateText("this should be ignored")
+
+	// Verify no panic occurred (test passes if we reach here)
+}
+
+func TestSpinnerUpdateTextConcurrent(t *testing.T) {
+	var buf bytes.Buffer
+	logger := New(&buf)
+
+	spinner := logger.Spinner("Processing")
+
+	// Launch multiple goroutines updating text concurrently
+	done := make(chan bool, 5)
+	for i := 0; i < 5; i++ {
+		go func(id int) {
+			for j := 0; j < 10; j++ {
+				spinner.UpdateText("goroutine " + string(rune('A'+id)) + " update " + string(rune('0'+j)))
+				time.Sleep(5 * time.Millisecond)
+			}
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < 5; i++ {
+		<-done
+	}
+
+	spinner.Success("All updates complete")
+
+	if !spinner.stopped {
+		t.Error("Expected spinner to be stopped after Success()")
+	}
+}
+
+func TestSpinnerUpdateTextRapid(t *testing.T) {
+	var buf bytes.Buffer
+	logger := New(&buf)
+
+	spinner := logger.Spinner("Starting")
+
+	// Rapid updates (stress test)
+	for i := 0; i < 100; i++ {
+		spinner.UpdateText("Update " + string(rune('0'+i%10)))
+		// No sleep - updates as fast as possible
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	spinner.Success("Rapid updates complete")
+
+	if !spinner.stopped {
+		t.Error("Expected spinner to be stopped")
+	}
+}
+
+func TestSpinnerUpdateTextEmpty(t *testing.T) {
+	var buf bytes.Buffer
+	logger := New(&buf)
+
+	spinner := logger.Spinner("Processing")
+	time.Sleep(50 * time.Millisecond)
+
+	// Empty string should be allowed
+	spinner.UpdateText("")
+	time.Sleep(50 * time.Millisecond)
+
+	spinner.Success("Done")
+
+	if !spinner.stopped {
+		t.Error("Expected spinner to be stopped")
+	}
+}
