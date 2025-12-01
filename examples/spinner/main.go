@@ -35,6 +35,11 @@ func main() {
 	// Demo 4: Mixed success/error scenarios
 	demoMixedOutcomes(logger)
 
+	time.Sleep(500 * time.Millisecond) //nolint:mnd // Demo pause between examples
+
+	// Demo 5: Progress updates with UpdateText()
+	demoProgressUpdates(logger)
+
 	logger.DecreasePadding()
 	logger.Success("All demos completed")
 }
@@ -273,4 +278,67 @@ func demoMixedOutcomes(logger *bullets.Logger) {
 
 	logger.DecreasePadding()
 	logger.Info("Mixed outcomes demo complete")
+}
+
+// demoProgressUpdates demonstrates using UpdateText() to show progress.
+//
+// NEW FEATURE: UpdateText() allows updating spinner text without stopping it.
+// This is useful for showing progress indicators, percentages, or status changes.
+//
+// WHAT'S HAPPENING:
+// - Spinner text is updated in-place during operation.
+// - Multiple concurrent spinners can update independently.
+// - Thread-safe: UpdateText() can be called from any goroutine.
+// - Updates appear on the next animation frame (within 80ms).
+func demoProgressUpdates(logger *bullets.Logger) {
+	logger.Info("Demo: Progress updates with UpdateText()")
+	logger.IncreasePadding()
+
+	// BEST PRACTICE: Create spinners upfront
+	downloadSpinner := logger.SpinnerDots("Downloading file")
+	processingSpinner := logger.SpinnerCircle("Processing items")
+	uploadSpinner := logger.SpinnerBounce("Uploading data")
+
+	var wg sync.WaitGroup
+	wg.Add(3) //nolint:mnd // Number of operations with progress
+
+	// Simulate download with percentage updates
+	go func() {
+		defer wg.Done()
+		percentages := []int{0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100}
+		for _, pct := range percentages {
+			downloadSpinner.UpdateText("Downloading file (" + string(rune('0'+pct/10)) + "0%)")
+			time.Sleep(200 * time.Millisecond) //nolint:mnd // Demo timing
+		}
+		downloadSpinner.Success("File downloaded (2.5MB)")
+	}()
+
+	// Simulate processing with item count updates
+	go func() {
+		defer wg.Done()
+		counts := []int{0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500}
+		for _, count := range counts {
+			processingSpinner.UpdateText("Processing items (" + string(rune('0'+count/100)) + string(rune('0'+(count/10)%10)) + "0/500)") //nolint:mnd // Digit extraction
+			time.Sleep(150 * time.Millisecond) //nolint:mnd // Demo timing
+		}
+		processingSpinner.Success("Processed 500 items")
+	}()
+
+	// Simulate upload with size updates
+	go func() {
+		defer wg.Done()
+		sizes := []string{"128KB", "256KB", "512KB", "768KB", "1.0MB", "1.5MB", "2.0MB", "2.5MB"}
+		for _, size := range sizes {
+			uploadSpinner.UpdateText("Uploading data (" + size + ")")
+			time.Sleep(300 * time.Millisecond) //nolint:mnd // Demo timing
+		}
+		uploadSpinner.Success("Upload complete")
+	}()
+
+	// THREAD SAFETY: All UpdateText() calls are thread-safe
+	// Coordinator handles concurrent updates gracefully
+	wg.Wait()
+
+	logger.DecreasePadding()
+	logger.Info("Progress updates demo complete")
 }
