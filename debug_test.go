@@ -202,6 +202,92 @@ func TestDebugValidation(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 }
 
+// TestDebugValidation_Level1_NoPanic verifies that debug level 1 does not panic
+// on state inconsistencies, making it safe for production troubleshooting.
+func TestDebugValidation_Level1_NoPanic(t *testing.T) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
+	os.Setenv("BULLETS_DEBUG", "1")
+	os.Setenv("BULLETS_FORCE_TTY", "1")
+	defer os.Unsetenv("BULLETS_DEBUG")
+	defer os.Unsetenv("BULLETS_FORCE_TTY")
+	resetDebugLevel()
+
+	var buf bytes.Buffer
+	logger := New(&buf)
+
+	spinner := logger.Spinner("Test")
+
+	// Inject a state inconsistency: register a spinner in the coordinator
+	// without adding it to the lineTracker, triggering an "error" severity.
+	fakeSpinner := &Spinner{}
+	logger.coordinator.mu.Lock()
+	logger.coordinator.spinners[fakeSpinner] = &spinnerState{
+		currentFrame: 0,
+		message:      "fake",
+		frames:       []string{"⠋"},
+	}
+	logger.coordinator.mu.Unlock()
+
+	// At level 1, this should log errors but NOT panic
+	logger.coordinator.validateDebugMode()
+
+	// Clean up: remove fake spinner to avoid affecting other state
+	logger.coordinator.mu.Lock()
+	delete(logger.coordinator.spinners, fakeSpinner)
+	logger.coordinator.mu.Unlock()
+
+	spinner.Success("Done")
+	time.Sleep(50 * time.Millisecond)
+}
+
+// TestDebugValidation_Level2_Panics verifies that debug level 2 panics
+// on state inconsistencies, catching bugs during development.
+func TestDebugValidation_Level2_Panics(t *testing.T) {
+	testDebugMu.Lock()
+	defer testDebugMu.Unlock()
+
+	os.Setenv("BULLETS_DEBUG", "2")
+	os.Setenv("BULLETS_FORCE_TTY", "1")
+	defer os.Unsetenv("BULLETS_DEBUG")
+	defer os.Unsetenv("BULLETS_FORCE_TTY")
+	resetDebugLevel()
+
+	var buf bytes.Buffer
+	logger := New(&buf)
+
+	spinner := logger.Spinner("Test")
+
+	// Inject same inconsistency as level 1 test
+	fakeSpinner := &Spinner{}
+	logger.coordinator.mu.Lock()
+	logger.coordinator.spinners[fakeSpinner] = &spinnerState{
+		currentFrame: 0,
+		message:      "fake",
+		frames:       []string{"⠋"},
+	}
+	logger.coordinator.mu.Unlock()
+
+	// At level 2, this SHOULD panic
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error("Expected panic at debug level 2, but none occurred")
+		}
+
+		// Clean up: remove fake spinner
+		logger.coordinator.mu.Lock()
+		delete(logger.coordinator.spinners, fakeSpinner)
+		logger.coordinator.mu.Unlock()
+
+		spinner.Success("Done")
+		time.Sleep(50 * time.Millisecond)
+	}()
+
+	logger.coordinator.validateDebugMode()
+}
+
 // TestDebugPerformance_Disabled verifies minimal overhead when debug is disabled.
 func TestDebugPerformance_Disabled(t *testing.T) {
 	testDebugMu.Lock()

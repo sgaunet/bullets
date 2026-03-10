@@ -258,7 +258,8 @@ func (c *SpinnerCoordinator) renderDebugMap() {
 }
 
 // validateDebugMode runs validation checks when debug mode is enabled.
-// Panics if critical inconsistencies are detected in debug mode.
+// At debug level 1 (basic), logs errors without panicking (production-safe).
+// At debug level 2 (verbose), panics on critical inconsistencies to catch bugs early.
 func (c *SpinnerCoordinator) validateDebugMode() {
 	if !isDebugEnabled() {
 		return
@@ -276,14 +277,16 @@ func (c *SpinnerCoordinator) validateDebugMode() {
 			}
 		}
 
-		// In debug mode, panic on errors to catch issues early
-		if errorCount > 0 {
+		// Only panic in verbose mode (level 2) for development use
+		if errorCount > 0 && isVerboseDebug() {
 			panic(fmt.Sprintf("DEBUG MODE: %d state consistency errors detected", errorCount))
 		}
 	}
 
 	if !c.checkStateInvariants() {
 		debugLog("VALIDATION", "ERROR: State invariants violated")
-		panic("DEBUG MODE: State invariants violated")
+		if isVerboseDebug() {
+			panic("DEBUG MODE: State invariants violated")
+		}
 	}
 }
