@@ -3,9 +3,11 @@ package bullets
 import (
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"strings"
 	"sync"
+
 	"golang.org/x/term"
 )
 
@@ -31,7 +33,7 @@ type BulletHandle struct {
 	color          string
 	bullet         string
 	padding        int
-	fields         map[string]interface{}
+	fields         map[string]any
 	mu             sync.Mutex
 }
 
@@ -44,7 +46,7 @@ func NewUpdatable(w io.Writer) *UpdatableLogger {
 	if os.Getenv("BULLETS_FORCE_TTY") == "1" {
 		isTTY = true
 	} else if f, ok := w.(*os.File); ok {
-		isTTY = term.IsTerminal(int(f.Fd()))
+		isTTY = term.IsTerminal(int(f.Fd())) //nolint:gosec // G115: fd fits int on all supported platforms
 	}
 
 	return &UpdatableLogger{
@@ -111,6 +113,10 @@ func (ul *UpdatableLogger) Success(msg string) {
 	ul.mu.Lock()
 	defer ul.mu.Unlock()
 
+	if ul.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
+
 	if InfoLevel < ul.level {
 		ul.lineCount++
 		return
@@ -145,6 +151,10 @@ func (ul *UpdatableLogger) logHandle(level Level, msg string) *BulletHandle {
 	ul.mu.Lock()
 	defer ul.mu.Unlock()
 
+	if ul.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
+
 	// Log the message normally
 	ul.log(level, msg)
 
@@ -157,7 +167,7 @@ func (ul *UpdatableLogger) logHandle(level Level, msg string) *BulletHandle {
 			message:         msg,
 			originalMessage: msg,
 			padding:         ul.padding,
-			fields:          make(map[string]interface{}),
+			fields:          make(map[string]any),
 		}
 	}
 
@@ -169,13 +179,11 @@ func (ul *UpdatableLogger) logHandle(level Level, msg string) *BulletHandle {
 		message:         msg,
 		originalMessage: msg,
 		padding:         ul.padding,
-		fields:          make(map[string]interface{}),
+		fields:          make(map[string]any),
 	}
 
 	// Copy fields from logger (already have the lock)
-	for k, v := range ul.fields {
-		handle.fields[k] = v
-	}
+	maps.Copy(handle.fields, ul.fields)
 
 	ul.handles = append(ul.handles, handle)
 	ul.lineCount++
@@ -187,6 +195,10 @@ func (ul *UpdatableLogger) logHandle(level Level, msg string) *BulletHandle {
 func (h *BulletHandle) Update(level Level, msg string) *BulletHandle {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	if h.logger.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
 
 	h.level = level
 	h.message = msg
@@ -205,6 +217,10 @@ func (h *BulletHandle) Update(level Level, msg string) *BulletHandle {
 func (h *BulletHandle) UpdateMessage(msg string) *BulletHandle {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	if h.logger.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
 
 	h.message = msg
 	h.originalMessage = msg  // Also update original message
@@ -233,6 +249,10 @@ func (h *BulletHandle) Success(msg string) *BulletHandle {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	if h.logger.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
+
 	h.message = msg
 	h.progressBar = ""  // Clear progress bar on success
 
@@ -257,12 +277,12 @@ func (h *BulletHandle) Warning(msg string) *BulletHandle {
 }
 
 // WithField adds a field to this bullet.
-func (h *BulletHandle) WithField(key string, value interface{}) *BulletHandle {
+func (h *BulletHandle) WithField(key string, value any) *BulletHandle {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	if h.fields == nil {
-		h.fields = make(map[string]interface{})
+		h.fields = make(map[string]any)
 	}
 	h.fields[key] = value
 	if h.lineNum != -1 && h.logger.isTTY {
@@ -272,13 +292,11 @@ func (h *BulletHandle) WithField(key string, value interface{}) *BulletHandle {
 }
 
 // WithFields adds multiple fields to this bullet.
-func (h *BulletHandle) WithFields(fields map[string]interface{}) *BulletHandle {
+func (h *BulletHandle) WithFields(fields map[string]any) *BulletHandle {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	for k, v := range fields {
-		h.fields[k] = v
-	}
+	maps.Copy(h.fields, fields)
 	if h.lineNum != -1 && h.logger.isTTY {
 		h.redraw()
 	}
@@ -349,7 +367,7 @@ func (h *BulletHandle) renderInPlace() {
 
 	// Add fields if present
 	if len(h.fields) > 0 {
-		var parts []string
+		parts := make([]string, 0, len(h.fields))
 		for k, v := range h.fields {
 			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
 		}
@@ -382,7 +400,7 @@ func (h *BulletHandle) renderSuccessInPlace() {
 
 	// Add fields if present
 	if len(h.fields) > 0 {
-		var parts []string
+		parts := make([]string, 0, len(h.fields))
 		for k, v := range h.fields {
 			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
 		}

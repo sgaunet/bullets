@@ -61,7 +61,7 @@ func newSpinner(logger *Logger, msg string, frames []string, _ string, interval 
 	} else if forceTTY == "0" {
 		isTTY = false
 	} else if f, ok := logger.writer.(*os.File); ok {
-		isTTY = term.IsTerminal(int(f.Fd()))
+		isTTY = term.IsTerminal(int(f.Fd())) //nolint:gosec // G115: fd fits int on all supported platforms
 	}
 
 	s := &Spinner{
@@ -133,6 +133,9 @@ func (s *Spinner) Stop() {
 // Thread-safe: Can be called from any goroutine.
 func (s *Spinner) Success(msg string) {
 	s.logger.mu.Lock()
+	if s.logger.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
 	// Determine bullet symbol for success
 	var bullet string
 	if custom, ok := s.logger.customBullets[InfoLevel]; ok {
@@ -164,6 +167,9 @@ func (s *Spinner) Success(msg string) {
 // Thread-safe: Can be called from any goroutine.
 func (s *Spinner) Error(msg string) {
 	s.logger.mu.Lock()
+	if s.logger.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
 	// Determine bullet symbol for error
 	var bullet string
 	if custom, ok := s.logger.customBullets[ErrorLevel]; ok {
@@ -203,6 +209,9 @@ func (s *Spinner) Fail(msg string) {
 // Thread-safe: Can be called from any goroutine.
 func (s *Spinner) Replace(msg string) {
 	s.logger.mu.Lock()
+	if s.logger.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
 	// Determine bullet symbol for info
 	var bullet string
 	if custom, ok := s.logger.customBullets[InfoLevel]; ok {
@@ -235,6 +244,12 @@ func (s *Spinner) Replace(msg string) {
 //
 // Thread-safe: Can be called from any goroutine.
 func (s *Spinner) UpdateText(msg string) {
+	s.logger.mu.Lock()
+	if s.logger.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
+	s.logger.mu.Unlock()
+
 	s.mu.Lock()
 	if s.stopped {
 		s.mu.Unlock()

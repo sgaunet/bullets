@@ -24,6 +24,9 @@ const (
 	FatalLevel
 )
 
+// levelError is the string representation of the error level.
+const levelError = "error"
+
 // MustParseLevel parses a level string or panics.
 func MustParseLevel(s string) Level {
 	level, err := ParseLevel(s)
@@ -43,7 +46,7 @@ func (l Level) String() string {
 	case WarnLevel:
 		return "warn"
 	case ErrorLevel:
-		return "error"
+		return levelError
 	case FatalLevel:
 		return "fatal"
 	default:
@@ -60,7 +63,7 @@ func ParseLevel(s string) (Level, error) {
 		return InfoLevel, nil
 	case "warn", "warning":
 		return WarnLevel, nil
-	case "error":
+	case levelError:
 		return ErrorLevel, nil
 	case "fatal":
 		return FatalLevel, nil

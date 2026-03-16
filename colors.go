@@ -17,7 +17,7 @@ const (
 	cyan    = "\033[36m"
 	white   = "\033[37m"
 
-	// Exported color constants for public use.
+	// ColorBlack and related exported color constants for public use.
 	ColorBlack   = black
 	ColorRed     = red
 	ColorGreen   = green
@@ -37,7 +37,7 @@ const (
 	brightCyan    = "\033[96m"
 	brightWhite   = "\033[97m"
 
-	// Exported bright color constants.
+	// ColorBrightBlack and related exported bright color constants.
 	ColorBrightBlack   = brightBlack
 	ColorBrightRed     = brightRed
 	ColorBrightGreen   = brightGreen
@@ -53,7 +53,7 @@ const (
 	italic    = "\033[3m"
 	underline = "\033[4m"
 
-	// Exported style constants.
+	// StyleBold and related exported style constants.
 	StyleBold      = bold
 	StyleDim       = dim
 	StyleItalic    = italic
