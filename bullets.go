@@ -5,6 +5,7 @@ package bullets
 import (
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"strings"
 	"sync"
@@ -26,9 +27,10 @@ type Logger struct {
 	writer            io.Writer
 	level             Level
 	padding           int
-	fields            map[string]interface{}
+	fields            map[string]any
 	useSpecialBullets bool
 	customBullets     map[Level]string
+	sanitizeInput     bool
 	writeMu           *sync.Mutex
 	coordinator       *SpinnerCoordinator
 }
@@ -40,7 +42,7 @@ func New(w io.Writer) *Logger {
 	if os.Getenv("BULLETS_FORCE_TTY") == "1" {
 		isTTY = true
 	} else if f, ok := w.(*os.File); ok {
-		isTTY = term.IsTerminal(int(f.Fd()))
+		isTTY = term.IsTerminal(int(f.Fd())) //nolint:gosec // G115: fd fits int on all supported platforms
 	}
 
 	writeMu := &sync.Mutex{}
@@ -48,7 +50,7 @@ func New(w io.Writer) *Logger {
 		writer:            w,
 		level:             InfoLevel,
 		padding:           0,
-		fields:            make(map[string]interface{}),
+		fields:            make(map[string]any),
 		useSpecialBullets: false,
 		customBullets:     make(map[Level]string),
 		writeMu:           writeMu,
@@ -87,6 +89,16 @@ func (l *Logger) SetUseSpecialBullets(use bool) {
 	l.useSpecialBullets = use
 }
 
+// SetSanitizeInput enables or disables ANSI escape sequence sanitization of user messages.
+// When enabled, all messages passed to logging methods will have ANSI escape sequences
+// stripped before storage and rendering. This protects against terminal injection attacks.
+// Default is false (disabled) for backward compatibility.
+func (l *Logger) SetSanitizeInput(sanitize bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.sanitizeInput = sanitize
+}
+
 // SetBullet sets a custom bullet symbol for a specific log level.
 // Custom bullets take priority over special bullets.
 func (l *Logger) SetBullet(level Level, bullet string) {
@@ -100,9 +112,7 @@ func (l *Logger) SetBullet(level Level, bullet string) {
 func (l *Logger) SetBullets(bullets map[Level]string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	for level, bullet := range bullets {
-		l.customBullets[level] = bullet
-	}
+	maps.Copy(l.customBullets, bullets)
 }
 
 // IncreasePadding increases the indentation level.
@@ -129,7 +139,7 @@ func (l *Logger) ResetPadding() {
 }
 
 // WithField returns a new logger with the given field added.
-func (l *Logger) WithField(key string, value interface{}) *Logger {
+func (l *Logger) WithField(key string, value any) *Logger {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -137,25 +147,22 @@ func (l *Logger) WithField(key string, value interface{}) *Logger {
 		writer:            l.writer,
 		level:             l.level,
 		padding:           l.padding,
-		fields:            make(map[string]interface{}),
+		fields:            make(map[string]any),
 		useSpecialBullets: l.useSpecialBullets,
+		sanitizeInput:     l.sanitizeInput,
 		customBullets:     make(map[Level]string),
 	}
 
-	for k, v := range l.fields {
-		newLogger.fields[k] = v
-	}
+	maps.Copy(newLogger.fields, l.fields)
 	newLogger.fields[key] = value
 
-	for k, v := range l.customBullets {
-		newLogger.customBullets[k] = v
-	}
+	maps.Copy(newLogger.customBullets, l.customBullets)
 
 	return newLogger
 }
 
 // WithFields returns a new logger with the given fields added.
-func (l *Logger) WithFields(fields map[string]interface{}) *Logger {
+func (l *Logger) WithFields(fields map[string]any) *Logger {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -163,21 +170,16 @@ func (l *Logger) WithFields(fields map[string]interface{}) *Logger {
 		writer:            l.writer,
 		level:             l.level,
 		padding:           l.padding,
-		fields:            make(map[string]interface{}),
+		fields:            make(map[string]any),
 		useSpecialBullets: l.useSpecialBullets,
+		sanitizeInput:     l.sanitizeInput,
 		customBullets:     make(map[Level]string),
 	}
 
-	for k, v := range l.fields {
-		newLogger.fields[k] = v
-	}
-	for k, v := range fields {
-		newLogger.fields[k] = v
-	}
+	maps.Copy(newLogger.fields, l.fields)
+	maps.Copy(newLogger.fields, fields)
 
-	for k, v := range l.customBullets {
-		newLogger.customBullets[k] = v
-	}
+	maps.Copy(newLogger.customBullets, l.customBullets)
 
 	return newLogger
 }
@@ -193,7 +195,7 @@ func (l *Logger) Debug(msg string) {
 }
 
 // Debugf logs a formatted debug message.
-func (l *Logger) Debugf(format string, args ...interface{}) {
+func (l *Logger) Debugf(format string, args ...any) {
 	l.log(DebugLevel, fmt.Sprintf(format, args...))
 }
 
@@ -203,7 +205,7 @@ func (l *Logger) Info(msg string) {
 }
 
 // Infof logs a formatted info message.
-func (l *Logger) Infof(format string, args ...interface{}) {
+func (l *Logger) Infof(format string, args ...any) {
 	l.log(InfoLevel, fmt.Sprintf(format, args...))
 }
 
@@ -213,7 +215,7 @@ func (l *Logger) Warn(msg string) {
 }
 
 // Warnf logs a formatted warning message.
-func (l *Logger) Warnf(format string, args ...interface{}) {
+func (l *Logger) Warnf(format string, args ...any) {
 	l.log(WarnLevel, fmt.Sprintf(format, args...))
 }
 
@@ -223,7 +225,7 @@ func (l *Logger) Error(msg string) {
 }
 
 // Errorf logs a formatted error message.
-func (l *Logger) Errorf(format string, args ...interface{}) {
+func (l *Logger) Errorf(format string, args ...any) {
 	l.log(ErrorLevel, fmt.Sprintf(format, args...))
 }
 
@@ -234,7 +236,7 @@ func (l *Logger) Fatal(msg string) {
 }
 
 // Fatalf logs a formatted fatal message and exits.
-func (l *Logger) Fatalf(format string, args ...interface{}) {
+func (l *Logger) Fatalf(format string, args ...any) {
 	l.log(FatalLevel, fmt.Sprintf(format, args...))
 	os.Exit(1)
 }
@@ -246,6 +248,10 @@ func (l *Logger) Success(msg string) {
 
 	if InfoLevel < l.level {
 		return
+	}
+
+	if l.sanitizeInput {
+		msg = sanitizeMsg(msg)
 	}
 
 	indent := strings.Repeat("  ", l.padding)
@@ -266,7 +272,7 @@ func (l *Logger) Success(msg string) {
 }
 
 // Successf logs a formatted success message.
-func (l *Logger) Successf(format string, args ...interface{}) {
+func (l *Logger) Successf(format string, args ...any) {
 	l.Success(fmt.Sprintf(format, args...))
 }
 
@@ -314,6 +320,9 @@ func (l *Logger) Step(msg string) func() {
 // Thread-safe: Multiple spinners can be created from different goroutines.
 func (l *Logger) Spinner(msg string) *Spinner {
 	l.mu.Lock()
+	if l.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
 	color := cyan // Default info level color
 	l.mu.Unlock()
 
@@ -329,6 +338,9 @@ func (l *Logger) Spinner(msg string) *Spinner {
 // Thread-safe: Multiple spinners can be created from different goroutines.
 func (l *Logger) SpinnerDots(msg string) *Spinner {
 	l.mu.Lock()
+	if l.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
 	color := cyan
 	l.mu.Unlock()
 
@@ -344,6 +356,9 @@ func (l *Logger) SpinnerDots(msg string) *Spinner {
 // Thread-safe: Multiple spinners can be created from different goroutines.
 func (l *Logger) SpinnerCircle(msg string) *Spinner {
 	l.mu.Lock()
+	if l.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
 	color := cyan
 	l.mu.Unlock()
 
@@ -359,6 +374,9 @@ func (l *Logger) SpinnerCircle(msg string) *Spinner {
 // Thread-safe: Multiple spinners can be created from different goroutines.
 func (l *Logger) SpinnerBounce(msg string) *Spinner {
 	l.mu.Lock()
+	if l.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
 	color := cyan
 	l.mu.Unlock()
 
@@ -381,6 +399,9 @@ func (l *Logger) SpinnerBounce(msg string) *Spinner {
 // Thread-safe: Multiple spinners can be created from different goroutines.
 func (l *Logger) SpinnerWithFrames(msg string, frames []string) *Spinner {
 	l.mu.Lock()
+	if l.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
 	color := cyan // Default info level color
 	l.mu.Unlock()
 
@@ -394,6 +415,10 @@ func (l *Logger) log(level Level, msg string) {
 
 	if level < l.level {
 		return
+	}
+
+	if l.sanitizeInput {
+		msg = sanitizeMsg(msg)
 	}
 
 	// Build padding

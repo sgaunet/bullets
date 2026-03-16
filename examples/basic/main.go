@@ -65,7 +65,7 @@ func main() {
 	logger.IncreasePadding()
 
 	logger.WithField("user", "john").Info("user logged in")
-	logger.WithFields(map[string]interface{}{
+	logger.WithFields(map[string]any{
 		"version": "1.2.3",
 		"arch":    "amd64",
 	}).Info("building package")

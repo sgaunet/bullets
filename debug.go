@@ -120,7 +120,7 @@ func isVerboseDebug() bool {
 // Only outputs if debugging is enabled. Format: [HH:MM:SS.mmm] [component] message.
 //
 //nolint:goprintffuncname // Printf-like function used internally
-func debugLog(component, format string, args ...interface{}) {
+func debugLog(component, format string, args ...any) {
 	if !isDebugEnabled() {
 		return
 	}
@@ -143,7 +143,7 @@ func debugLog(component, format string, args ...interface{}) {
 // debugLogVerbose writes a verbose debug message, only if verbose debugging is enabled.
 //
 //nolint:goprintffuncname // Printf-like function used internally
-func debugLogVerbose(component, format string, args ...interface{}) {
+func debugLogVerbose(component, format string, args ...any) {
 	if !isVerboseDebug() {
 		return
 	}
@@ -269,7 +269,7 @@ func (c *SpinnerCoordinator) validateDebugMode() {
 	if len(inconsistencies) > 0 {
 		errorCount := 0
 		for _, inc := range inconsistencies {
-			if inc.severity == "error" { //nolint:goconst // Severity level string
+			if inc.severity == levelError {
 				debugLog("VALIDATION", "ERROR: %s", inc.description)
 				errorCount++
 			} else {

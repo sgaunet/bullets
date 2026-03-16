@@ -88,7 +88,7 @@ func generateTasks(count int) []Task {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // Example code, not cryptographic
 
 	tasks := make([]Task, count)
-	for i := 0; i < count; i++ { //nolint:intrange // Backward compatibility with older Go versions
+	for i := range count {
 		// Random duration between 100ms and 3s
 		duration := time.Duration(100+rng.Intn(2900)) * time.Millisecond //nolint:mnd // Random task duration
 

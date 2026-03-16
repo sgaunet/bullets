@@ -307,7 +307,7 @@ func demoProgressUpdates(logger *bullets.Logger) {
 		defer wg.Done()
 		percentages := []int{0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100}
 		for _, pct := range percentages {
-			downloadSpinner.UpdateText("Downloading file (" + string(rune('0'+pct/10)) + "0%)")
+			downloadSpinner.UpdateText("Downloading file (" + string(rune('0'+pct/10)) + "0%)") //nolint:gosec // G115: pct/10 is always 0-10
 			time.Sleep(200 * time.Millisecond) //nolint:mnd // Demo timing
 		}
 		downloadSpinner.Success("File downloaded (2.5MB)")
@@ -318,7 +318,7 @@ func demoProgressUpdates(logger *bullets.Logger) {
 		defer wg.Done()
 		counts := []int{0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500}
 		for _, count := range counts {
-			processingSpinner.UpdateText("Processing items (" + string(rune('0'+count/100)) + string(rune('0'+(count/10)%10)) + "0/500)") //nolint:mnd // Digit extraction
+			processingSpinner.UpdateText("Processing items (" + string(rune('0'+count/100)) + string(rune('0'+(count/10)%10)) + "0/500)") //nolint:gosec,mnd // G115: digit values are always 0-9; mnd: digit extraction
 			time.Sleep(150 * time.Millisecond) //nolint:mnd // Demo timing
 		}
 		processingSpinner.Success("Processed 500 items")

@@ -2,6 +2,8 @@ package bullets
 
 import (
 	"fmt"
+	"maps"
+	"strings"
 	"sync"
 	"time"
 )
@@ -12,7 +14,7 @@ type HandleState struct {
 	Message string
 	Color   string
 	Bullet  string
-	Fields  map[string]interface{}
+	Fields  map[string]any
 }
 
 // GetState returns the current state of the handle.
@@ -20,10 +22,8 @@ func (h *BulletHandle) GetState() HandleState {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	fields := make(map[string]interface{})
-	for k, v := range h.fields {
-		fields[k] = v
-	}
+	fields := make(map[string]any)
+	maps.Copy(fields, h.fields)
 
 	return HandleState{
 		Level:   h.level,
@@ -40,6 +40,9 @@ func (h *BulletHandle) SetState(state HandleState) *BulletHandle {
 	defer h.mu.Unlock()
 
 	h.level = state.Level
+	if h.logger.sanitizeInput {
+		state.Message = sanitizeMsg(state.Message)
+	}
 	h.message = state.Message
 	if state.Color != "" {
 		h.color = state.Color
@@ -49,10 +52,8 @@ func (h *BulletHandle) SetState(state HandleState) *BulletHandle {
 	}
 
 	// Update fields
-	h.fields = make(map[string]interface{})
-	for k, v := range state.Fields {
-		h.fields[k] = v
-	}
+	h.fields = make(map[string]any)
+	maps.Copy(h.fields, state.Fields)
 
 	if h.lineNum != -1 && h.logger.isTTY {
 		h.redraw()
@@ -145,20 +146,21 @@ func renderProgressBar(percentage int) string {
 	)
 	filled := (percentage * barWidth) / percentMultiplier
 
-	bar := "["
+	var bar strings.Builder
+	bar.WriteString("[")
 	for i := range barWidth {
 		switch {
 		case i < filled:
-			bar += "="
+			bar.WriteString("=")
 		case i == filled && percentage < 100:
-			bar += ">"
+			bar.WriteString(">")
 		default:
-			bar += " "
+			bar.WriteString(" ")
 		}
 	}
-	bar += "]"
+	bar.WriteString("]")
 
-	return fmt.Sprintf("%s %d%%", bar, percentage)
+	return fmt.Sprintf("%s %d%%", bar.String(), percentage)
 }
 
 // HandleGroup manages a group of related handles.
@@ -286,7 +288,7 @@ func (hc *HandleChain) Error(msg string) *HandleChain {
 }
 
 // WithField adds a field to all handles in the chain.
-func (hc *HandleChain) WithField(key string, value interface{}) *HandleChain {
+func (hc *HandleChain) WithField(key string, value any) *HandleChain {
 	for _, h := range hc.handles {
 		h.WithField(key, value)
 	}
