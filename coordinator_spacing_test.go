@@ -2,6 +2,7 @@ package bullets
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -92,9 +93,9 @@ func TestSequentialSpinnerGroupsNoExtraLines(t *testing.T) {
 	buf, logger := captureOutput()
 
 	// First group: Create 3 spinners and complete them
-	s1 := logger.Spinner("Group 1 - Task 1")
-	s2 := logger.Spinner("Group 1 - Task 2")
-	s3 := logger.Spinner("Group 1 - Task 3")
+	s1 := logger.Spinner(context.Background(),"Group 1 - Task 1")
+	s2 := logger.Spinner(context.Background(),"Group 1 - Task 2")
+	s3 := logger.Spinner(context.Background(),"Group 1 - Task 3")
 
 	time.Sleep(200 * time.Millisecond) // Allow animation frames
 
@@ -105,9 +106,9 @@ func TestSequentialSpinnerGroupsNoExtraLines(t *testing.T) {
 	time.Sleep(100 * time.Millisecond) // Ensure all updates are processed
 
 	// Second group: Immediately create 3 more spinners and complete them
-	s4 := logger.Spinner("Group 2 - Task 1")
-	s5 := logger.Spinner("Group 2 - Task 2")
-	s6 := logger.Spinner("Group 2 - Task 3")
+	s4 := logger.Spinner(context.Background(),"Group 2 - Task 1")
+	s5 := logger.Spinner(context.Background(),"Group 2 - Task 2")
+	s6 := logger.Spinner(context.Background(),"Group 2 - Task 3")
 
 	time.Sleep(200 * time.Millisecond) // Allow animation frames
 
@@ -166,10 +167,10 @@ func TestCompletionMessagesNotOverwritten(t *testing.T) {
 	buf, logger := captureOutput()
 
 	// Create spinners with unique identifiers
-	s1 := logger.Spinner("Processing task A")
-	s2 := logger.Spinner("Processing task B")
-	s3 := logger.Spinner("Processing task C")
-	s4 := logger.Spinner("Processing task D")
+	s1 := logger.Spinner(context.Background(),"Processing task A")
+	s2 := logger.Spinner(context.Background(),"Processing task B")
+	s3 := logger.Spinner(context.Background(),"Processing task C")
+	s4 := logger.Spinner(context.Background(),"Processing task D")
 
 	time.Sleep(200 * time.Millisecond) // Allow animation frames
 
@@ -240,8 +241,8 @@ func TestRapidSequentialSpinnerGroups(t *testing.T) {
 	// Create and complete 3 groups rapidly
 	for groupNum := 1; groupNum <= 3; groupNum++ {
 		// Create 2 spinners per group
-		s1 := logger.Spinner(fmt.Sprintf("Group %d - Task 1", groupNum))
-		s2 := logger.Spinner(fmt.Sprintf("Group %d - Task 2", groupNum))
+		s1 := logger.Spinner(context.Background(),fmt.Sprintf("Group %d - Task 1", groupNum))
+		s2 := logger.Spinner(context.Background(),fmt.Sprintf("Group %d - Task 2", groupNum))
 
 		time.Sleep(50 * time.Millisecond) // Minimal animation time
 
@@ -296,12 +297,12 @@ func TestMixedCompletionTypes(t *testing.T) {
 	buf, logger := captureOutput()
 
 	// Create spinners
-	s1 := logger.Spinner("Task 1 (will succeed)")
-	s2 := logger.Spinner("Task 2 (will error)")
-	s3 := logger.Spinner("Task 3 (will succeed)")
-	s4 := logger.Spinner("Task 4 (will replace)")
-	s5 := logger.Spinner("Task 5 (will error)")
-	s6 := logger.Spinner("Task 6 (will succeed)")
+	s1 := logger.Spinner(context.Background(),"Task 1 (will succeed)")
+	s2 := logger.Spinner(context.Background(),"Task 2 (will error)")
+	s3 := logger.Spinner(context.Background(),"Task 3 (will succeed)")
+	s4 := logger.Spinner(context.Background(),"Task 4 (will replace)")
+	s5 := logger.Spinner(context.Background(),"Task 5 (will error)")
+	s6 := logger.Spinner(context.Background(),"Task 6 (will succeed)")
 
 	time.Sleep(100 * time.Millisecond) // Allow animation
 
@@ -385,8 +386,8 @@ func TestConcurrentGroupTransitions(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s1 := logger.Spinner("Concurrent Group 1 - Task 1")
-		s2 := logger.Spinner("Concurrent Group 1 - Task 2")
+		s1 := logger.Spinner(context.Background(),"Concurrent Group 1 - Task 1")
+		s2 := logger.Spinner(context.Background(),"Concurrent Group 1 - Task 2")
 
 		time.Sleep(80 * time.Millisecond)
 
@@ -400,8 +401,8 @@ func TestConcurrentGroupTransitions(t *testing.T) {
 		defer wg.Done()
 		time.Sleep(40 * time.Millisecond) // Stagger start
 
-		s3 := logger.Spinner("Concurrent Group 2 - Task 1")
-		s4 := logger.Spinner("Concurrent Group 2 - Task 2")
+		s3 := logger.Spinner(context.Background(),"Concurrent Group 2 - Task 1")
+		s4 := logger.Spinner(context.Background(),"Concurrent Group 2 - Task 2")
 
 		time.Sleep(80 * time.Millisecond)
 

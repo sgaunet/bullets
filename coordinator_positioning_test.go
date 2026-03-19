@@ -2,6 +2,7 @@ package bullets
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"sync"
 	"testing"
@@ -27,10 +28,10 @@ func TestSpinnerPositionStability(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Create 4 spinners that will be at lines 0, 1, 2, 3
-	spinner1 := logger.Spinner("Task 1")
-	spinner2 := logger.Spinner("Task 2")
-	spinner3 := logger.Spinner("Task 3")
-	spinner4 := logger.Spinner("Task 4")
+	spinner1 := logger.Spinner(context.Background(),"Task 1")
+	spinner2 := logger.Spinner(context.Background(),"Task 2")
+	spinner3 := logger.Spinner(context.Background(),"Task 3")
+	spinner4 := logger.Spinner(context.Background(),"Task 4")
 
 	// Let them animate briefly
 	time.Sleep(200 * time.Millisecond)
@@ -102,9 +103,9 @@ func TestCompletionDoesNotShiftRemainingSpinners(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Create 3 spinners
-	s1 := logger.Spinner("Spinner 1")
-	s2 := logger.Spinner("Spinner 2")
-	s3 := logger.Spinner("Spinner 3")
+	s1 := logger.Spinner(context.Background(),"Spinner 1")
+	s2 := logger.Spinner(context.Background(),"Spinner 2")
+	s3 := logger.Spinner(context.Background(),"Spinner 3")
 
 	// Verify initial line numbers
 	if s1.lineNumber != 0 || s2.lineNumber != 1 || s3.lineNumber != 2 {
@@ -166,9 +167,9 @@ func TestVisualOutputNoOverlap(t *testing.T) {
 	}
 	logger.coordinator.isTTY = true
 
-	s1 := logger.Spinner("Task A")
-	s2 := logger.Spinner("Task B")
-	s3 := logger.Spinner("Task C")
+	s1 := logger.Spinner(context.Background(),"Task A")
+	s2 := logger.Spinner(context.Background(),"Task B")
+	s3 := logger.Spinner(context.Background(),"Task C")
 
 	time.Sleep(150 * time.Millisecond)
 

@@ -2,6 +2,7 @@ package bullets
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -79,7 +80,7 @@ func TestSpinnerModeEntryOnFirstSpinner(t *testing.T) {
 	}
 
 	// Create the first spinner
-	s1 := logger.Spinner("First spinner")
+	s1 := logger.Spinner(context.Background(),"First spinner")
 
 	// Give the coordinator time to process the registration
 	time.Sleep(20 * time.Millisecond)
@@ -124,13 +125,13 @@ func TestMultipleSpinnersMaintainMode(t *testing.T) {
 	_ = buf
 
 	// Create multiple spinners
-	s1 := logger.Spinner("Spinner 1")
+	s1 := logger.Spinner(context.Background(),"Spinner 1")
 	time.Sleep(10 * time.Millisecond)
 
-	s2 := logger.Spinner("Spinner 2")
+	s2 := logger.Spinner(context.Background(),"Spinner 2")
 	time.Sleep(10 * time.Millisecond)
 
-	s3 := logger.Spinner("Spinner 3")
+	s3 := logger.Spinner(context.Background(),"Spinner 3")
 	time.Sleep(20 * time.Millisecond)
 
 	// Should be in spinner mode
@@ -180,9 +181,9 @@ func TestSpinnerModeExitOnLastCompletion(t *testing.T) {
 	_ = buf
 
 	// Create multiple spinners
-	s1 := logger.Spinner("Task A")
-	s2 := logger.Spinner("Task B")
-	s3 := logger.Spinner("Task C")
+	s1 := logger.Spinner(context.Background(),"Task A")
+	s2 := logger.Spinner(context.Background(),"Task B")
+	s3 := logger.Spinner(context.Background(),"Task C")
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -264,7 +265,7 @@ func TestSpinnerModeExitWithDifferentCompletionTypes(t *testing.T) {
 			_ = buf
 
 			// Create a single spinner
-			s := logger.Spinner("Test spinner")
+			s := logger.Spinner(context.Background(),"Test spinner")
 			time.Sleep(30 * time.Millisecond)
 
 			// Verify we're in spinner mode
@@ -293,9 +294,9 @@ func TestSpinnerModeExitWithOutOfOrderCompletion(t *testing.T) {
 	_ = buf
 
 	// Create spinners in order
-	s1 := logger.Spinner("First")
-	s2 := logger.Spinner("Second")
-	s3 := logger.Spinner("Third")
+	s1 := logger.Spinner(context.Background(),"First")
+	s2 := logger.Spinner(context.Background(),"Second")
+	s3 := logger.Spinner(context.Background(),"Third")
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -344,8 +345,8 @@ func TestRapidSpinnerModeReentry(t *testing.T) {
 	for _, delay := range delays {
 		t.Run(fmt.Sprintf("Delay_%dms", delay.Milliseconds()), func(t *testing.T) {
 			// First group
-			s1 := logger.Spinner("Group 1 - Spinner 1")
-			s2 := logger.Spinner("Group 1 - Spinner 2")
+			s1 := logger.Spinner(context.Background(),"Group 1 - Spinner 1")
+			s2 := logger.Spinner(context.Background(),"Group 1 - Spinner 2")
 
 			time.Sleep(30 * time.Millisecond)
 
@@ -367,8 +368,8 @@ func TestRapidSpinnerModeReentry(t *testing.T) {
 			time.Sleep(delay)
 
 			// Second group
-			s3 := logger.Spinner("Group 2 - Spinner 1")
-			s4 := logger.Spinner("Group 2 - Spinner 2")
+			s3 := logger.Spinner(context.Background(),"Group 2 - Spinner 1")
+			s4 := logger.Spinner(context.Background(),"Group 2 - Spinner 2")
 
 			time.Sleep(30 * time.Millisecond)
 
@@ -399,8 +400,8 @@ func TestOverlappingSpinnerLifecycles(t *testing.T) {
 	_ = buf
 
 	// Create first group
-	s1 := logger.Spinner("Group 1 - Task 1")
-	s2 := logger.Spinner("Group 1 - Task 2")
+	s1 := logger.Spinner(context.Background(),"Group 1 - Task 1")
+	s2 := logger.Spinner(context.Background(),"Group 1 - Task 2")
 
 	time.Sleep(30 * time.Millisecond)
 
@@ -414,8 +415,8 @@ func TestOverlappingSpinnerLifecycles(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 
 	// Create second group while first group is still active
-	s3 := logger.Spinner("Group 2 - Task 1")
-	s4 := logger.Spinner("Group 2 - Task 2")
+	s3 := logger.Spinner(context.Background(),"Group 2 - Task 1")
+	s4 := logger.Spinner(context.Background(),"Group 2 - Task 2")
 
 	time.Sleep(20 * time.Millisecond)
 
@@ -453,7 +454,7 @@ func TestImmediateReentry(t *testing.T) {
 
 	// Create, complete, and immediately create new spinner
 	for i := 0; i < 5; i++ {
-		s := logger.Spinner(fmt.Sprintf("Iteration %d", i+1))
+		s := logger.Spinner(context.Background(),fmt.Sprintf("Iteration %d", i+1))
 		time.Sleep(20 * time.Millisecond)
 
 		// Should be in spinner mode
@@ -489,7 +490,7 @@ func TestModeTransitionsWithVaryingGroupSizes(t *testing.T) {
 			// Create group of specified size
 			spinners := make([]*Spinner, size)
 			for i := 0; i < size; i++ {
-				spinners[i] = logger.Spinner(fmt.Sprintf("Spinner %d/%d", i+1, size))
+				spinners[i] = logger.Spinner(context.Background(),fmt.Sprintf("Spinner %d/%d", i+1, size))
 				time.Sleep(5 * time.Millisecond)
 			}
 
@@ -565,7 +566,7 @@ func TestSpinnerModeConcurrentSafety(t *testing.T) {
 		go func(workerID int) {
 			defer spinnerWg.Done()
 			for j := 0; j < spinnersPerWorker; j++ {
-				s := logger.Spinner(fmt.Sprintf("Worker %d - Spinner %d", workerID, j))
+				s := logger.Spinner(context.Background(),fmt.Sprintf("Worker %d - Spinner %d", workerID, j))
 				spinnerCount.Add(1)
 
 				time.Sleep(10 * time.Millisecond)
@@ -633,7 +634,7 @@ func TestModeTransitionTimingBounds(t *testing.T) {
 	// Test mode entry timing
 	t.Run("ModeEntryTiming", func(t *testing.T) {
 		startTime := time.Now()
-		s := logger.Spinner("Test entry timing")
+		s := logger.Spinner(context.Background(),"Test entry timing")
 
 		// Mode should enter quickly (within 100ms)
 		if !waitForModeChange(coordinator, true, 100*time.Millisecond) {
@@ -652,7 +653,7 @@ func TestModeTransitionTimingBounds(t *testing.T) {
 
 	// Test mode exit timing
 	t.Run("ModeExitTiming", func(t *testing.T) {
-		s := logger.Spinner("Test exit timing")
+		s := logger.Spinner(context.Background(),"Test exit timing")
 		time.Sleep(30 * time.Millisecond)
 
 		startTime := time.Now()
@@ -690,7 +691,7 @@ func TestStressTestModeTransitions(t *testing.T) {
 
 	for i := 0; i < iterations; i++ {
 		// Create spinner (mode entry)
-		s := logger.Spinner(fmt.Sprintf("Iteration %d", i+1))
+		s := logger.Spinner(context.Background(),fmt.Sprintf("Iteration %d", i+1))
 
 		// Very brief animation time
 		time.Sleep(5 * time.Millisecond)

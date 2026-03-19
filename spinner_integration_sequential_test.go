@@ -1,6 +1,7 @@
 package bullets
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -24,7 +25,7 @@ func TestSequentialSpinnersNoBlankLines(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// First spinner - let it run for 3-5 frames (~240-400ms)
-	spinner1 := logger.Spinner("Task 1")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
 	time.Sleep(320 * time.Millisecond) // ~4 frames at 80ms interval
 	spinner1.Success("Task 1 complete")
 
@@ -32,7 +33,7 @@ func TestSequentialSpinnersNoBlankLines(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Second spinner - immediately after first completes
-	spinner2 := logger.Spinner("Task 2")
+	spinner2 := logger.Spinner(context.Background(), "Task 2")
 	time.Sleep(320 * time.Millisecond) // ~4 frames
 	spinner2.Success("Task 2 complete")
 
@@ -83,13 +84,13 @@ func TestSequentialSpinnersCursorPositioning(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Run first spinner
-	spinner1 := logger.Spinner("Task 1")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
 	time.Sleep(250 * time.Millisecond)
 	spinner1.Success("Task 1 done")
 	time.Sleep(50 * time.Millisecond)
 
 	// Run second spinner
-	spinner2 := logger.Spinner("Task 2")
+	spinner2 := logger.Spinner(context.Background(), "Task 2")
 	time.Sleep(250 * time.Millisecond)
 	spinner2.Success("Task 2 done")
 	time.Sleep(50 * time.Millisecond)
@@ -136,13 +137,13 @@ func TestSequentialSpinnersLineClearing(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Create and complete first spinner
-	spinner1 := logger.Spinner("Processing data")
+	spinner1 := logger.Spinner(context.Background(), "Processing data")
 	time.Sleep(240 * time.Millisecond) // 3 frames
 	spinner1.Success("Data processed")
 	time.Sleep(50 * time.Millisecond)
 
 	// Create and complete second spinner
-	spinner2 := logger.Spinner("Uploading results")
+	spinner2 := logger.Spinner(context.Background(), "Uploading results")
 	time.Sleep(240 * time.Millisecond) // 3 frames
 	spinner2.Success("Results uploaded")
 	time.Sleep(50 * time.Millisecond)
@@ -193,7 +194,7 @@ func TestSequentialSpinnersCompletionTiming(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Time the completion rendering
-	spinner1 := logger.Spinner("Task 1")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
 	time.Sleep(200 * time.Millisecond)
 
 	startCompletion := time.Now()
@@ -235,7 +236,7 @@ func TestSequentialSpinnersFrameCount(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Run spinner for exactly 400ms (should get ~5 frames at 80ms interval)
-	spinner1 := logger.Spinner("Task 1")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
 	time.Sleep(400 * time.Millisecond)
 	spinner1.Success("Done")
 	time.Sleep(50 * time.Millisecond)
@@ -283,19 +284,19 @@ func TestSequentialSpinnersWithDifferentMessages(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Short message
-	spinner1 := logger.Spinner("A")
+	spinner1 := logger.Spinner(context.Background(), "A")
 	time.Sleep(200 * time.Millisecond)
 	spinner1.Success("Done")
 	time.Sleep(50 * time.Millisecond)
 
 	// Long message
-	spinner2 := logger.Spinner("This is a very long spinner message that should properly clear the previous content")
+	spinner2 := logger.Spinner(context.Background(), "This is a very long spinner message that should properly clear the previous content")
 	time.Sleep(200 * time.Millisecond)
 	spinner2.Success("Completed successfully with a detailed message")
 	time.Sleep(50 * time.Millisecond)
 
 	// Short again
-	spinner3 := logger.Spinner("B")
+	spinner3 := logger.Spinner(context.Background(), "B")
 	time.Sleep(200 * time.Millisecond)
 	spinner3.Success("OK")
 	time.Sleep(50 * time.Millisecond)
@@ -333,11 +334,11 @@ func TestSequentialSpinnersImmediateCompletion(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Complete immediately - no animation frames
-	spinner1 := logger.Spinner("Task 1")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
 	spinner1.Success("Already done")
 
 	// Normal spinner
-	spinner2 := logger.Spinner("Task 2")
+	spinner2 := logger.Spinner(context.Background(), "Task 2")
 	time.Sleep(200 * time.Millisecond)
 	spinner2.Success("Task 2 done")
 

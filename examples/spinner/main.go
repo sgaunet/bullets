@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"sync"
 	"time"
@@ -59,10 +60,10 @@ func demoBasicConcurrent(logger *bullets.Logger) {
 
 	// BEST PRACTICE: Create all spinners upfront before starting concurrent work
 	// This allows the coordinator to allocate line numbers efficiently
-	dbSpinner := logger.SpinnerDots("Connecting to database")
-	apiSpinner := logger.SpinnerCircle("Fetching API data")
-	fileSpinner := logger.SpinnerBounce("Processing files")
-	cacheSpinner := logger.Spinner("Warming up cache")
+	dbSpinner := logger.SpinnerDots(context.Background(), "Connecting to database")
+	apiSpinner := logger.SpinnerCircle(context.Background(), "Fetching API data")
+	fileSpinner := logger.SpinnerBounce(context.Background(), "Processing files")
+	cacheSpinner := logger.Spinner(context.Background(), "Warming up cache")
 
 	// Use WaitGroup to coordinate goroutines
 	var wg sync.WaitGroup
@@ -125,7 +126,7 @@ func demoRapidCreation(logger *bullets.Logger) {
 	// Create spinners in rapid succession with minimal delay
 	var spinners []*bullets.Spinner
 	for i := 1; i <= 5; i++ {
-		spinner := logger.Spinner("Task " + string(rune('A'+i-1)))
+		spinner := logger.Spinner(context.Background(), "Task "+string(rune('A'+i-1)))
 		spinners = append(spinners, spinner)
 		// Minimal delay between creations (simulates burst scenario)
 		time.Sleep(10 * time.Millisecond) //nolint:mnd // Rapid creation timing
@@ -171,10 +172,10 @@ func demoOutOfOrderCompletion(logger *bullets.Logger) {
 	logger.IncreasePadding()
 
 	// Create spinners in sequence
-	spinner1 := logger.Spinner("Long operation (4s)")
-	spinner2 := logger.Spinner("Medium operation (3s)")
-	spinner3 := logger.Spinner("Short operation (2s)")
-	spinner4 := logger.Spinner("Quick operation (1s)")
+	spinner1 := logger.Spinner(context.Background(), "Long operation (4s)")
+	spinner2 := logger.Spinner(context.Background(), "Medium operation (3s)")
+	spinner3 := logger.Spinner(context.Background(), "Short operation (2s)")
+	spinner4 := logger.Spinner(context.Background(), "Quick operation (1s)")
 
 	var wg sync.WaitGroup
 	wg.Add(4) //nolint:mnd // Number of spinners
@@ -227,12 +228,12 @@ func demoMixedOutcomes(logger *bullets.Logger) {
 	logger.IncreasePadding()
 
 	// Create spinners that will have different outcomes
-	s1 := logger.Spinner("Operation A")
-	s2 := logger.Spinner("Operation B")
-	s3 := logger.Spinner("Operation C")
-	s4 := logger.Spinner("Operation D")
-	s5 := logger.Spinner("Operation E")
-	s6 := logger.Spinner("Operation F")
+	s1 := logger.Spinner(context.Background(), "Operation A")
+	s2 := logger.Spinner(context.Background(), "Operation B")
+	s3 := logger.Spinner(context.Background(), "Operation C")
+	s4 := logger.Spinner(context.Background(), "Operation D")
+	s5 := logger.Spinner(context.Background(), "Operation E")
+	s6 := logger.Spinner(context.Background(), "Operation F")
 
 	var wg sync.WaitGroup
 	wg.Add(6) //nolint:mnd // Number of operations
@@ -295,9 +296,9 @@ func demoProgressUpdates(logger *bullets.Logger) {
 	logger.IncreasePadding()
 
 	// BEST PRACTICE: Create spinners upfront
-	downloadSpinner := logger.SpinnerDots("Downloading file")
-	processingSpinner := logger.SpinnerCircle("Processing items")
-	uploadSpinner := logger.SpinnerBounce("Uploading data")
+	downloadSpinner := logger.SpinnerDots(context.Background(), "Downloading file")
+	processingSpinner := logger.SpinnerCircle(context.Background(), "Processing items")
+	uploadSpinner := logger.SpinnerBounce(context.Background(), "Uploading data")
 
 	var wg sync.WaitGroup
 	wg.Add(3) //nolint:mnd // Number of operations with progress

@@ -56,6 +56,13 @@ export BULLETS_FORCE_TTY=1
 go run examples/spinner/main.go
 ```
 
+**Context examples (demonstrates cancellation and timeouts):**
+```bash
+# Shows context-driven spinner lifecycle: timeouts, manual cancel, shared context
+export BULLETS_FORCE_TTY=1
+go run examples/context/main.go
+```
+
 **Debug mode:**
 ```bash
 # Basic debug output (registration, completion, errors) - production-safe, no panics
@@ -223,6 +230,13 @@ The spinner system uses a **centralized coordinator pattern** for robust concurr
    - `writeMu` serializes terminal writes
    - Channel communication reduces lock contention
 
+6. **Context-Aware Lifecycle**: All spinner creation methods accept `context.Context`
+   - When context is cancelled/times out, spinner auto-stops with error message from `ctx.Err()`
+   - The `animate()` goroutine selects on both `stopCh` and `ctx.Done()`
+   - `handleContextCancellation()` sends completion directly to coordinator (avoids deadlock with `stopAnimation()`)
+   - Race between manual `Success()`/`Error()` and context cancellation is safe: coordinator ignores duplicate completions
+   - Context's `Done()` channel and `Err()` function are stored (not the context itself) to satisfy `containedctx` lint rule
+
 **TTY Mode Behavior:**
 - Each spinner gets a dedicated terminal line
 - ANSI escape codes move cursor to update specific lines
@@ -280,7 +294,8 @@ The spinner coordination system has been hardened to eliminate several edge case
 
 1. **Create Spinners Upfront**: Allocate all spinners before starting concurrent work
    ```go
-   s1, s2, s3 := logger.Spinner("Task 1"), logger.Spinner("Task 2"), logger.Spinner("Task 3")
+   ctx := context.Background()
+   s1, s2, s3 := logger.Spinner(ctx, "Task 1"), logger.Spinner(ctx, "Task 2"), logger.Spinner(ctx, "Task 3")
    // Now start goroutines that complete the spinners
    ```
 
@@ -370,6 +385,7 @@ bullets/
 ├── colors.go          # ANSI color utilities
 ├── examples/
 │   ├── basic/         # Basic logger examples
+│   ├── context/       # Context cancellation and timeout examples
 │   ├── updatable/     # Updatable bullets examples
 │   └── spinner/       # Spinner examples (edge cases, concurrent usage)
 └── *_test.go          # Test files (edge cases, integration, benchmarks)
@@ -401,9 +417,11 @@ logger.WithField("key", "value").
 
 **Spinner lifecycle:**
 ```go
-spinner := logger.Spinner("processing")
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+spinner := logger.Spinner(ctx, "processing")
 // ... work ...
-spinner.Success("completed")  // or Error(), Replace(), Stop()
+spinner.Success("completed")  // or Error(), Replace(), Stop(), or context auto-cancels
 ```
 
 **Updatable pattern:**

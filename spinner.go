@@ -1,6 +1,7 @@
 package bullets
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -22,7 +23,7 @@ import (
 // Example usage:
 //
 //	logger := bullets.New(os.Stdout)
-//	spinner := logger.SpinnerCircle("Processing data")
+//	spinner := logger.SpinnerCircle(context.Background(), "Processing data")
 //	// ... do work ...
 //	spinner.Success("Processing complete")
 //
@@ -42,12 +43,14 @@ type Spinner struct {
 	doneCh     chan bool
 	mu         sync.Mutex
 	stopped    bool
-	lineNumber int  // Line position (0 = bottom, 1 = second from bottom, etc.)
-	isTTY      bool // Whether output is a TTY
+	lineNumber int            // Line position (0 = bottom, 1 = second from bottom, etc.)
+	isTTY      bool           // Whether output is a TTY
+	ctxDone    <-chan struct{} // Context Done channel for cancellation support
+	ctxErr     func() error   // Context Err function to retrieve cancellation reason
 }
 
 // newSpinner creates a new spinner with the given parameters.
-func newSpinner(logger *Logger, msg string, frames []string, _ string, interval time.Duration) *Spinner {
+func newSpinner(ctx context.Context, logger *Logger, msg string, frames []string, _ string, interval time.Duration) *Spinner {
 	color := cyan // Always use cyan for consistency
 	if len(frames) == 0 {
 		frames = []string{bulletInfo, "○"} // Default: full and empty circle
@@ -76,6 +79,8 @@ func newSpinner(logger *Logger, msg string, frames []string, _ string, interval 
 		doneCh:   make(chan bool),
 		stopped:  false,
 		isTTY:    isTTY,
+		ctxDone:  ctx.Done(),
+		ctxErr:   ctx.Err,
 	}
 
 	// Register spinner and get line number
@@ -126,7 +131,7 @@ func (s *Spinner) Stop() {
 //
 // Example:
 //
-//	spinner := logger.SpinnerCircle("Connecting")
+//	spinner := logger.SpinnerCircle(context.Background(), "Connecting")
 //	// ... do work ...
 //	spinner.Success("Connected successfully")
 //
@@ -160,7 +165,7 @@ func (s *Spinner) Success(msg string) {
 //
 // Example:
 //
-//	spinner := logger.SpinnerCircle("Connecting")
+//	spinner := logger.SpinnerCircle(context.Background(), "Connecting")
 //	// ... do work ...
 //	spinner.Error("Connection failed: timeout")
 //
@@ -202,7 +207,7 @@ func (s *Spinner) Fail(msg string) {
 //
 // Example:
 //
-//	spinner := logger.SpinnerCircle("Processing")
+//	spinner := logger.SpinnerCircle(context.Background(), "Processing")
 //	// ... do work ...
 //	spinner.Replace("Processed 1000 records in 5.2s")
 //
@@ -235,7 +240,7 @@ func (s *Spinner) Replace(msg string) {
 //
 // Example:
 //
-//	spinner := logger.Spinner("Processing items")
+//	spinner := logger.Spinner(context.Background(), "Processing items")
 //	for i := 1; i <= 100; i++ {
 //	    spinner.UpdateText(fmt.Sprintf("Processing items (%d/100)", i))
 //	    time.Sleep(10 * time.Millisecond)
@@ -316,12 +321,73 @@ func (s *Spinner) completeSpinner(msg, color, bullet string) {
 
 // animate runs the spinner animation in a goroutine.
 // In TTY mode, coordinator handles rendering. In non-TTY mode, no animation occurs.
+// Monitors both the stop channel and the context for cancellation.
 func (s *Spinner) animate() {
 	defer close(s.doneCh)
 
-	// Both TTY and non-TTY: just wait for stop signal
-	// TTY animation is handled by coordinator's central ticker
-	// Non-TTY has no animation (already printed static message)
-	<-s.stopCh
+	// Wait for either manual stop or context cancellation.
+	// TTY animation is handled by coordinator's central ticker.
+	// Non-TTY has no animation (already printed static message).
+	select {
+	case <-s.stopCh:
+		// Normal stop (via Stop(), Success(), Error(), Replace())
+		return
+	case <-s.ctxDone:
+		// Context cancelled or timed out — auto-terminate the spinner.
+		// We must NOT call stopAnimation() here because this goroutine owns doneCh
+		// (via defer close) and stopAnimation() waits on doneCh — that would deadlock.
+		s.mu.Lock()
+		if s.stopped {
+			s.mu.Unlock()
+			return // Already stopped via normal path
+		}
+		s.stopped = true
+		s.mu.Unlock()
+
+		s.handleContextCancellation()
+	}
+}
+
+// handleContextCancellation renders the cancellation message when a spinner's context
+// is cancelled. This method is called from animate() and must NOT call stopAnimation()
+// to avoid deadlocking on doneCh.
+func (s *Spinner) handleContextCancellation() {
+	msg := s.ctxErr().Error()
+
+	s.logger.mu.Lock()
+	if s.logger.sanitizeInput {
+		msg = sanitizeMsg(msg)
+	}
+	var bullet string
+	if custom, ok := s.logger.customBullets[ErrorLevel]; ok {
+		bullet = custom
+	} else if s.logger.useSpecialBullets {
+		bullet = bulletError
+	} else {
+		bullet = bulletInfo
+	}
+	s.logger.mu.Unlock()
+
+	if s.logger.coordinator.isTTY {
+		doneCh := make(chan struct{})
+		s.logger.coordinator.sendUpdate(spinnerUpdate{
+			spinner:      s,
+			updateType:   updateComplete,
+			finalMessage: msg,
+			finalColor:   red,
+			finalBullet:  bullet,
+			doneCh:       doneCh,
+		})
+		<-doneCh
+	} else {
+		indent := strings.Repeat("  ", s.padding)
+		formatted := fmt.Sprintf("%s %s", colorize(red, bullet), msg)
+
+		s.logger.writeMu.Lock()
+		fmt.Fprintf(s.writer, "%s%s\n", indent, formatted)
+		s.logger.writeMu.Unlock()
+
+		s.logger.unregisterSpinner(s)
+	}
 }
 

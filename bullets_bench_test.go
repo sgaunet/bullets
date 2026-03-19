@@ -2,6 +2,7 @@ package bullets_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"sync"
@@ -285,7 +286,7 @@ func BenchmarkLogger_Spinner(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		spinner := logger.Spinner("Benchmark spinner")
+		spinner := logger.Spinner(context.Background(), "Benchmark spinner")
 		spinner.Stop()
 	}
 }
@@ -296,7 +297,7 @@ func BenchmarkSpinner_LifeCycle(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		spinner := logger.Spinner("Loading")
+		spinner := logger.Spinner(context.Background(), "Loading")
 		time.Sleep(1 * time.Millisecond)
 		spinner.Success("Complete")
 	}
@@ -309,7 +310,7 @@ func BenchmarkSpinner_CustomFrames(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		spinner := logger.SpinnerWithFrames("Custom", frames)
+		spinner := logger.SpinnerWithFrames(context.Background(), "Custom", frames)
 		spinner.Stop()
 	}
 }
@@ -482,7 +483,7 @@ func BenchmarkMixedOperations(b *testing.B) {
 		handle.Update(bullets.WarnLevel, "Updated")
 
 		// Spinner
-		spinner := logger.Spinner("Processing")
+		spinner := logger.Spinner(context.Background(), "Processing")
 		spinner.Stop()
 	}
 }

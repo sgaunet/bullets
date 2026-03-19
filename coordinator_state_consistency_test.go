@@ -2,6 +2,7 @@ package bullets
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -17,7 +18,7 @@ func TestCoordinatorStateConsistency_SingleSpinner(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("Test")
+	spinner := logger.Spinner(context.Background(),"Test")
 
 	// Validate state immediately after creation
 	inconsistencies := logger.coordinator.validateCoordinatorState()
@@ -70,7 +71,7 @@ func TestCoordinatorStateConsistency_ConcurrentCreation(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			spinners[idx] = logger.Spinner(fmt.Sprintf("Spinner %d", idx))
+			spinners[idx] = logger.Spinner(context.Background(),fmt.Sprintf("Spinner %d", idx))
 		}(i)
 	}
 
@@ -123,7 +124,7 @@ func TestCoordinatorStateConsistency_RapidCreationCompletion(t *testing.T) {
 
 	// Rapidly create and complete spinners
 	for i := 0; i < 50; i++ {
-		spinner := logger.Spinner(fmt.Sprintf("Rapid %d", i))
+		spinner := logger.Spinner(context.Background(),fmt.Sprintf("Rapid %d", i))
 
 		// Validate state during active spinner
 		inconsistencies := logger.coordinator.validateCoordinatorState()
@@ -173,7 +174,7 @@ func TestCoordinatorStateConsistency_AlternatingCompletions(t *testing.T) {
 
 	// Create all spinners
 	for i := 0; i < numSpinners; i++ {
-		spinners[i] = logger.Spinner(fmt.Sprintf("Spinner %d", i))
+		spinners[i] = logger.Spinner(context.Background(),fmt.Sprintf("Spinner %d", i))
 	}
 	time.Sleep(100 * time.Millisecond)
 
@@ -267,7 +268,7 @@ func TestCoordinatorStateConsistency_StressTest(t *testing.T) {
 			defer wg.Done()
 
 			for i := 0; i < iterationsPerWorker; i++ {
-				spinner := logger.Spinner(fmt.Sprintf("W%d-S%d", workerID, i))
+				spinner := logger.Spinner(context.Background(),fmt.Sprintf("W%d-S%d", workerID, i))
 				time.Sleep(10 * time.Millisecond)
 
 				// Randomly complete with Success or Error
@@ -320,7 +321,7 @@ func TestCoordinatorStateConsistency_LineNumberUniqueness(t *testing.T) {
 
 		// Create spinners
 		for i := 0; i < spinnersPerRound; i++ {
-			spinners[i] = logger.Spinner(fmt.Sprintf("R%d-S%d", round, i))
+			spinners[i] = logger.Spinner(context.Background(),fmt.Sprintf("R%d-S%d", round, i))
 			lineNum := logger.coordinator.getSpinnerLineNumber(spinners[i])
 
 			// Check for duplicate line numbers
@@ -359,10 +360,10 @@ func TestCoordinatorStateConsistency_InvariantsAlwaysHold(t *testing.T) {
 
 	checkInvariants("initial")
 
-	s1 := logger.Spinner("S1")
+	s1 := logger.Spinner(context.Background(),"S1")
 	checkInvariants("after S1 creation")
 
-	s2 := logger.Spinner("S2")
+	s2 := logger.Spinner(context.Background(),"S2")
 	checkInvariants("after S2 creation")
 
 	time.Sleep(100 * time.Millisecond)
@@ -371,7 +372,7 @@ func TestCoordinatorStateConsistency_InvariantsAlwaysHold(t *testing.T) {
 	s1.Success("S1 done")
 	checkInvariants("after S1 completion")
 
-	s3 := logger.Spinner("S3")
+	s3 := logger.Spinner(context.Background(),"S3")
 	checkInvariants("after S3 creation")
 
 	s2.Error("S2 failed")

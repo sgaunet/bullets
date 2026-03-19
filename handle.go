@@ -1,6 +1,7 @@
 package bullets
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"strings"
@@ -88,7 +89,8 @@ func (h *BulletHandle) UpdateBullet(bullet string) *BulletHandle {
 }
 
 // Pulse creates a pulsing effect by alternating between two states.
-func (h *BulletHandle) Pulse(duration time.Duration, alternateMsg string) {
+// The context controls the pulse lifetime; when cancelled, the original message is restored.
+func (h *BulletHandle) Pulse(ctx context.Context, duration time.Duration, alternateMsg string) {
 	if h.lineNum == -1 || !h.logger.isTTY {
 		return
 	}
@@ -105,6 +107,9 @@ func (h *BulletHandle) Pulse(duration time.Duration, alternateMsg string) {
 		toggle := false
 		for {
 			select {
+			case <-ctx.Done():
+				h.UpdateMessage(originalMsg)
+				return
 			case <-timer.C:
 				h.UpdateMessage(originalMsg)
 				return

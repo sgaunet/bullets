@@ -2,6 +2,7 @@ package bullets
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"strings"
 	"sync"
@@ -82,7 +83,7 @@ func TestDebugOutput_WithSpinners(t *testing.T) {
 	logger := New(&buf)
 
 	// Create and complete a spinner
-	spinner := logger.Spinner("Test spinner")
+	spinner := logger.Spinner(context.Background(), "Test spinner")
 	time.Sleep(50 * time.Millisecond)
 	spinner.Success("Done")
 	time.Sleep(50 * time.Millisecond)
@@ -131,8 +132,8 @@ func TestDebugState_Capture(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner1 := logger.Spinner("Spinner 1")
-	spinner2 := logger.Spinner("Spinner 2")
+	spinner1 := logger.Spinner(context.Background(), "Spinner 1")
+	spinner2 := logger.Spinner(context.Background(), "Spinner 2")
 
 	state := logger.coordinator.captureDebugState()
 	if state == nil {
@@ -166,9 +167,9 @@ func TestDebugMap_Rendering(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner1 := logger.Spinner("Spinner 1")
-	spinner2 := logger.Spinner("Spinner 2")
-	spinner3 := logger.Spinner("Spinner 3")
+	spinner1 := logger.Spinner(context.Background(), "Spinner 1")
+	spinner2 := logger.Spinner(context.Background(), "Spinner 2")
+	spinner3 := logger.Spinner(context.Background(), "Spinner 3")
 
 	// Render debug map (goes to stderr)
 	logger.coordinator.renderDebugMap()
@@ -193,7 +194,7 @@ func TestDebugValidation(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("Test")
+	spinner := logger.Spinner(context.Background(), "Test")
 
 	// Validation should run without panicking
 	logger.coordinator.validateDebugMode()
@@ -217,7 +218,7 @@ func TestDebugValidation_Level1_NoPanic(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("Test")
+	spinner := logger.Spinner(context.Background(), "Test")
 
 	// Inject a state inconsistency: register a spinner in the coordinator
 	// without adding it to the lineTracker, triggering an "error" severity.
@@ -257,7 +258,7 @@ func TestDebugValidation_Level2_Panics(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("Test")
+	spinner := logger.Spinner(context.Background(), "Test")
 
 	// Inject same inconsistency as level 1 test
 	fakeSpinner := &Spinner{}
@@ -305,7 +306,7 @@ func TestDebugPerformance_Disabled(t *testing.T) {
 
 	// Create and complete many spinners
 	for i := 0; i < 50; i++ {
-		spinner := logger.Spinner("Test")
+		spinner := logger.Spinner(context.Background(), "Test")
 		spinner.Success("Done")
 	}
 
@@ -336,7 +337,7 @@ func TestDebugPerformance_Enabled(t *testing.T) {
 
 	// Create and complete many spinners with debug enabled
 	for i := 0; i < 50; i++ {
-		spinner := logger.Spinner("Test")
+		spinner := logger.Spinner(context.Background(), "Test")
 		spinner.Success("Done")
 	}
 
@@ -413,9 +414,9 @@ func TestDebugModeIntegration(t *testing.T) {
 
 	t.Log("Creating spinners with debug output...")
 
-	s1 := logger.Spinner("Task 1")
-	s2 := logger.Spinner("Task 2")
-	s3 := logger.Spinner("Task 3")
+	s1 := logger.Spinner(context.Background(), "Task 1")
+	s2 := logger.Spinner(context.Background(), "Task 2")
+	s3 := logger.Spinner(context.Background(), "Task 3")
 
 	time.Sleep(200 * time.Millisecond)
 

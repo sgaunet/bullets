@@ -2,6 +2,7 @@ package bullets
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -11,7 +12,7 @@ func TestSpinnerCreation(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("loading")
+	spinner := logger.Spinner(context.Background(), "loading")
 
 	if spinner == nil {
 		t.Fatal("Spinner() returned nil")
@@ -28,7 +29,7 @@ func TestSpinnerStop(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("processing")
+	spinner := logger.Spinner(context.Background(), "processing")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Stop()
 
@@ -41,7 +42,7 @@ func TestSpinnerSuccess(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("downloading")
+	spinner := logger.Spinner(context.Background(), "downloading")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Success("download complete")
 
@@ -55,7 +56,7 @@ func TestSpinnerError(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("connecting")
+	spinner := logger.Spinner(context.Background(), "connecting")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Error("connection failed")
 
@@ -69,7 +70,7 @@ func TestSpinnerFail(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("uploading")
+	spinner := logger.Spinner(context.Background(), "uploading")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Fail("upload failed")
 
@@ -83,7 +84,7 @@ func TestSpinnerReplace(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("processing")
+	spinner := logger.Spinner(context.Background(), "processing")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Replace("processed 100 items")
 
@@ -97,7 +98,7 @@ func TestSpinnerDots(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerDots("loading")
+	spinner := logger.SpinnerDots(context.Background(), "loading")
 
 	if len(spinner.frames) == 0 {
 		t.Error("Expected spinner to have frames")
@@ -110,7 +111,7 @@ func TestSpinnerCircle(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerCircle("processing")
+	spinner := logger.SpinnerCircle(context.Background(), "processing")
 
 	expectedFrames := []string{"◐", "◓", "◑", "◒"}
 	if len(spinner.frames) != len(expectedFrames) {
@@ -124,7 +125,7 @@ func TestSpinnerBounce(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerBounce("bouncing")
+	spinner := logger.SpinnerBounce(context.Background(), "bouncing")
 
 	if len(spinner.frames) == 0 {
 		t.Error("Expected spinner to have frames")
@@ -138,7 +139,7 @@ func TestSpinnerWithFrames(t *testing.T) {
 	logger := New(&buf)
 
 	customFrames := []string{"1", "2", "3", "4"}
-	spinner := logger.SpinnerWithFrames("custom", customFrames)
+	spinner := logger.SpinnerWithFrames(context.Background(), "custom", customFrames)
 
 	if len(spinner.frames) != 4 {
 		t.Errorf("Expected 4 frames, got %d", len(spinner.frames))
@@ -159,7 +160,7 @@ func TestSpinnerWithPadding(t *testing.T) {
 	logger.IncreasePadding()
 	logger.IncreasePadding()
 
-	spinner := logger.Spinner("indented")
+	spinner := logger.Spinner(context.Background(), "indented")
 
 	if spinner.padding != 2 {
 		t.Errorf("Expected spinner padding to be 2, got %d", spinner.padding)
@@ -172,7 +173,7 @@ func TestSpinnerMultipleStops(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("test")
+	spinner := logger.Spinner(context.Background(), "test")
 	time.Sleep(50 * time.Millisecond)
 
 	spinner.Stop()
@@ -188,7 +189,7 @@ func TestSpinnerWithSpecialBullets(t *testing.T) {
 	logger := New(&buf)
 	logger.SetUseSpecialBullets(true)
 
-	spinner := logger.Spinner("loading")
+	spinner := logger.Spinner(context.Background(), "loading")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Success("done")
 
@@ -204,7 +205,7 @@ func TestSpinnerWithCustomBullet(t *testing.T) {
 	logger := New(&buf)
 	logger.SetBullet(InfoLevel, "★")
 
-	spinner := logger.Spinner("loading")
+	spinner := logger.Spinner(context.Background(), "loading")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Replace("finished")
 
@@ -219,9 +220,9 @@ func TestMultipleSimultaneousSpinners(t *testing.T) {
 	logger := New(&buf)
 
 	// Create multiple spinners
-	spinner1 := logger.SpinnerCircle("task 1")
-	spinner2 := logger.SpinnerCircle("task 2")
-	spinner3 := logger.SpinnerCircle("task 3")
+	spinner1 := logger.SpinnerCircle(context.Background(), "task 1")
+	spinner2 := logger.SpinnerCircle(context.Background(), "task 2")
+	spinner3 := logger.SpinnerCircle(context.Background(), "task 3")
 
 	// Verify they are registered in coordinator
 	logger.coordinator.mu.Lock()
@@ -277,9 +278,9 @@ func TestSpinnerLineNumberUpdate(t *testing.T) {
 	logger := New(&buf)
 
 	// Create three spinners
-	spinner1 := logger.SpinnerCircle("task 1")
-	spinner2 := logger.SpinnerCircle("task 2")
-	spinner3 := logger.SpinnerCircle("task 3")
+	spinner1 := logger.SpinnerCircle(context.Background(), "task 1")
+	spinner2 := logger.SpinnerCircle(context.Background(), "task 2")
+	spinner3 := logger.SpinnerCircle(context.Background(), "task 3")
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -308,7 +309,7 @@ func TestSpinnerUpdateText(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("Processing 0%")
+	spinner := logger.Spinner(context.Background(), "Processing 0%")
 	time.Sleep(100 * time.Millisecond)
 
 	// Update the text a few times
@@ -337,7 +338,7 @@ func TestSpinnerUpdateTextAfterStop(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("processing")
+	spinner := logger.Spinner(context.Background(), "processing")
 	time.Sleep(50 * time.Millisecond)
 
 	// Stop the spinner
@@ -358,7 +359,7 @@ func TestSpinnerUpdateTextConcurrent(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("Processing")
+	spinner := logger.Spinner(context.Background(), "Processing")
 
 	// Launch multiple goroutines updating text concurrently
 	done := make(chan bool, 5)
@@ -388,7 +389,7 @@ func TestSpinnerUpdateTextRapid(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("Starting")
+	spinner := logger.Spinner(context.Background(), "Starting")
 
 	// Rapid updates (stress test)
 	for i := 0; i < 100; i++ {
@@ -408,7 +409,7 @@ func TestSpinnerUpdateTextEmpty(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.Spinner("Processing")
+	spinner := logger.Spinner(context.Background(), "Processing")
 	time.Sleep(50 * time.Millisecond)
 
 	// Empty string should be allowed

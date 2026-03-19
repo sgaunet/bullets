@@ -2,6 +2,7 @@ package bullets
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"strings"
 	"testing"
@@ -14,7 +15,7 @@ func TestSpinnerEmptyFramesFallback(t *testing.T) {
 	logger := New(&buf)
 
 	// Pass empty frames
-	spinner := logger.SpinnerWithFrames("test", []string{})
+	spinner := logger.SpinnerWithFrames(context.Background(), "test", []string{})
 
 	if len(spinner.frames) == 0 {
 		t.Error("Expected spinner to have default frames when empty frames provided")
@@ -29,7 +30,7 @@ func TestSpinnerSuccessWithCustomBullet(t *testing.T) {
 	logger := New(&buf)
 	logger.SetBullet(InfoLevel, "★")
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Success("done")
 
@@ -48,7 +49,7 @@ func TestSpinnerSuccessWithSpecialBullet(t *testing.T) {
 	logger := New(&buf)
 	logger.SetUseSpecialBullets(true)
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Success("done")
 
@@ -65,7 +66,7 @@ func TestSpinnerSuccessDefault(t *testing.T) {
 	logger := New(&buf)
 	// Explicitly disable special bullets and no custom bullets
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Success("done")
 
@@ -85,7 +86,7 @@ func TestSpinnerErrorWithCustomBullet(t *testing.T) {
 	logger := New(&buf)
 	logger.SetBullet(ErrorLevel, "✖")
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Error("failed")
 
@@ -104,7 +105,7 @@ func TestSpinnerErrorWithSpecialBullet(t *testing.T) {
 	logger := New(&buf)
 	logger.SetUseSpecialBullets(true)
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Error("failed")
 
@@ -120,7 +121,7 @@ func TestSpinnerErrorDefault(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Error("failed")
 
@@ -136,7 +137,7 @@ func TestSpinnerReplaceWithCustomBullet(t *testing.T) {
 	logger := New(&buf)
 	logger.SetBullet(InfoLevel, "→")
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Replace("replaced")
 
@@ -154,7 +155,7 @@ func TestSpinnerReplaceDefault(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Replace("replaced")
 
@@ -171,7 +172,7 @@ func TestSpinnerNonTTYSuccessWithCustomBullet(t *testing.T) {
 	logger.SetBullet(InfoLevel, "✓")
 
 	// Non-TTY mode (default for bytes.Buffer)
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(50 * time.Millisecond)
 	spinner.Success("completed")
 
@@ -187,7 +188,7 @@ func TestSpinnerNonTTYErrorWithCustomBullet(t *testing.T) {
 	logger := New(&buf)
 	logger.SetBullet(ErrorLevel, "✗")
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(50 * time.Millisecond)
 	spinner.Error("failed")
 
@@ -203,7 +204,7 @@ func TestSpinnerNonTTYReplaceWithCustomBullet(t *testing.T) {
 	logger := New(&buf)
 	logger.SetBullet(InfoLevel, "→")
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(50 * time.Millisecond)
 	spinner.Replace("replaced")
 
@@ -224,7 +225,7 @@ func TestSpinnerWithOsFileWriter(t *testing.T) {
 	defer tmpFile.Close()
 
 	logger := New(tmpFile)
-	spinner := logger.SpinnerCircle("test with file")
+	spinner := logger.SpinnerCircle(context.Background(), "test with file")
 
 	// Should detect as non-TTY (file, not terminal)
 	if spinner.isTTY {
@@ -251,7 +252,7 @@ func TestSpinnerWithBULLETS_FORCE_TTY(t *testing.T) {
 
 	var buf bytes.Buffer
 	logger := New(&buf)
-	spinner := logger.SpinnerCircle("forced TTY test")
+	spinner := logger.SpinnerCircle(context.Background(), "forced TTY test")
 
 	// Should detect as TTY due to env var
 	if !spinner.isTTY {
@@ -342,7 +343,7 @@ func TestSpinnerMultipleBulletConfigurations(t *testing.T) {
 			logger := New(&buf)
 			tc.setupLogger(logger)
 
-			spinner := logger.SpinnerCircle("test")
+			spinner := logger.SpinnerCircle(context.Background(), "test")
 			time.Sleep(50 * time.Millisecond)
 			tc.completionFunc(spinner)
 
@@ -361,7 +362,7 @@ func TestSpinnerStressRapidCompletions(t *testing.T) {
 
 	// Create and complete 100 spinners rapidly
 	for i := 0; i < 100; i++ {
-		spinner := logger.SpinnerCircle("test")
+		spinner := logger.SpinnerCircle(context.Background(), "test")
 		switch i % 3 {
 		case 0:
 			spinner.Success("ok")
@@ -381,7 +382,7 @@ func TestSpinnerEdgeCaseZeroInterval(t *testing.T) {
 	logger := New(&buf)
 
 	// Create spinner with zero interval (should still work)
-	spinner := newSpinner(logger, "test", []string{"1", "2"}, "", 0)
+	spinner := newSpinner(context.Background(), logger, "test", []string{"1", "2"}, "", 0)
 	time.Sleep(50 * time.Millisecond)
 	spinner.Stop()
 
@@ -393,7 +394,7 @@ func TestSpinnerEdgeCaseSingleFrame(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerWithFrames("test", []string{"●"})
+	spinner := logger.SpinnerWithFrames(context.Background(), "test", []string{"●"})
 	time.Sleep(50 * time.Millisecond)
 	spinner.Stop()
 
@@ -412,7 +413,7 @@ func TestSpinnerWithPaddingLevels(t *testing.T) {
 			logger.IncreasePadding()
 		}
 
-		spinner := logger.SpinnerCircle("test")
+		spinner := logger.SpinnerCircle(context.Background(), "test")
 		if spinner.padding != i {
 			t.Errorf("Expected padding %d, got %d", i, spinner.padding)
 		}
@@ -426,7 +427,7 @@ func TestSpinnerDoubleStopIdempotent(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(50 * time.Millisecond)
 
 	spinner.Stop()
@@ -438,7 +439,7 @@ func TestSpinnerCompletionAfterStop(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(50 * time.Millisecond)
 	spinner.Stop()
 
@@ -466,7 +467,7 @@ func TestSpinnerTTYSuccessWithCustomBullet(t *testing.T) {
 	logger := New(&buf)
 	logger.SetBullet(InfoLevel, "✓")
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Success("completed")
 
@@ -493,7 +494,7 @@ func TestSpinnerTTYSuccessWithSpecialBullet(t *testing.T) {
 	logger := New(&buf)
 	logger.SetUseSpecialBullets(true)
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Success("done")
 
@@ -519,7 +520,7 @@ func TestSpinnerTTYSuccessDefault(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Success("done")
 
@@ -546,7 +547,7 @@ func TestSpinnerTTYErrorWithCustomBullet(t *testing.T) {
 	logger := New(&buf)
 	logger.SetBullet(ErrorLevel, "✗")
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Error("failed")
 
@@ -573,7 +574,7 @@ func TestSpinnerTTYErrorWithSpecialBullet(t *testing.T) {
 	logger := New(&buf)
 	logger.SetUseSpecialBullets(true)
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Error("failed")
 
@@ -599,7 +600,7 @@ func TestSpinnerTTYErrorDefault(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Error("failed")
 
@@ -626,7 +627,7 @@ func TestSpinnerTTYReplaceWithCustomBullet(t *testing.T) {
 	logger := New(&buf)
 	logger.SetBullet(InfoLevel, "→")
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Replace("replaced")
 
@@ -652,7 +653,7 @@ func TestSpinnerTTYReplaceDefault(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 	spinner.Replace("replaced")
 

@@ -2,6 +2,7 @@ package bullets_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -18,7 +19,7 @@ func TestSpinnerWithEmptyFrames(t *testing.T) {
 	logger := bullets.New(&buf)
 
 	// Create spinner with empty frames
-	spinner := logger.SpinnerWithFrames("Loading", []string{})
+	spinner := logger.SpinnerWithFrames(context.Background(), "Loading", []string{})
 
 	if spinner == nil {
 		t.Fatal("SpinnerWithFrames with empty frames returned nil")
@@ -36,7 +37,7 @@ func TestSpinnerWithNilFrames(t *testing.T) {
 	logger := bullets.New(&buf)
 
 	// Create spinner with nil frames
-	spinner := logger.SpinnerWithFrames("Loading", nil)
+	spinner := logger.SpinnerWithFrames(context.Background(), "Loading", nil)
 
 	if spinner == nil {
 		t.Fatal("SpinnerWithFrames with nil frames returned nil")
@@ -53,11 +54,11 @@ func TestSpinnerDoubleStart(t *testing.T) {
 	var buf bytes.Buffer
 	logger := bullets.New(&buf)
 
-	spinner := logger.Spinner("Testing")
+	spinner := logger.Spinner(context.Background(), "Testing")
 	time.Sleep(20 * time.Millisecond)
 
 	// Try to create another spinner while one is running
-	spinner2 := logger.Spinner("Another spinner")
+	spinner2 := logger.Spinner(context.Background(), "Another spinner")
 
 	// Both spinners should exist
 	if spinner == nil || spinner2 == nil {
@@ -73,7 +74,7 @@ func TestSpinnerDoubleStop(t *testing.T) {
 	var buf bytes.Buffer
 	logger := bullets.New(&buf)
 
-	spinner := logger.Spinner("Testing")
+	spinner := logger.Spinner(context.Background(), "Testing")
 	time.Sleep(50 * time.Millisecond)
 
 	// Stop multiple times
@@ -89,7 +90,7 @@ func TestSpinnerConcurrentOperations(t *testing.T) {
 	writer := &syncWriterSpinner{buf: &bytes.Buffer{}}
 	logger := bullets.New(writer)
 
-	spinner := logger.Spinner("Concurrent test")
+	spinner := logger.Spinner(context.Background(), "Concurrent test")
 
 	var wg sync.WaitGroup
 	wg.Add(4)
@@ -129,7 +130,7 @@ func TestSpinnerWithEmptyMessage(t *testing.T) {
 	var buf bytes.Buffer
 	logger := bullets.New(&buf)
 
-	spinner := logger.Spinner("")
+	spinner := logger.Spinner(context.Background(), "")
 	time.Sleep(50 * time.Millisecond)
 	spinner.Stop()
 
@@ -142,7 +143,7 @@ func TestSpinnerWithVeryLongMessage(t *testing.T) {
 	logger := bullets.New(&buf)
 
 	longMessage := strings.Repeat("a", 10000)
-	spinner := logger.Spinner(longMessage)
+	spinner := logger.Spinner(context.Background(), longMessage)
 	time.Sleep(50 * time.Millisecond)
 	spinner.Success("Done")
 
@@ -157,7 +158,7 @@ func TestSpinnerAfterStop(t *testing.T) {
 	var buf bytes.Buffer
 	logger := bullets.New(&buf)
 
-	spinner := logger.Spinner("Test")
+	spinner := logger.Spinner(context.Background(), "Test")
 	spinner.Stop()
 
 	// Try operations after stop
@@ -177,7 +178,7 @@ func TestMultipleSpinnersSimultaneous(t *testing.T) {
 	// Create multiple spinners
 	spinners := make([]*bullets.Spinner, 10)
 	for i := 0; i < 10; i++ {
-		spinners[i] = logger.Spinner(fmt.Sprintf("Spinner %d", i))
+		spinners[i] = logger.Spinner(context.Background(), fmt.Sprintf("Spinner %d", i))
 		time.Sleep(5 * time.Millisecond)
 	}
 
@@ -202,7 +203,7 @@ func TestSpinnerWithSpecialCharacters(t *testing.T) {
 	}
 
 	for _, msg := range messages {
-		spinner := logger.Spinner(msg)
+		spinner := logger.Spinner(context.Background(), msg)
 		time.Sleep(20 * time.Millisecond)
 		spinner.Success("Complete")
 	}
@@ -217,7 +218,7 @@ func TestSpinnerFramesWithSpecialCharacters(t *testing.T) {
 
 	// Frames with unicode and emoji
 	frames := []string{"🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"}
-	spinner := logger.SpinnerWithFrames("Moon phases", frames)
+	spinner := logger.SpinnerWithFrames(context.Background(), "Moon phases", frames)
 
 	time.Sleep(100 * time.Millisecond)
 	spinner.Success("Complete")
@@ -232,7 +233,7 @@ func TestSpinnerWithHighFrequencyUpdates(t *testing.T) {
 
 	// Create spinner with 1ms frame duration (very fast)
 	frames := []string{"1", "2", "3", "4"}
-	spinner := logger.SpinnerWithFrames("Fast", frames)
+	spinner := logger.SpinnerWithFrames(context.Background(), "Fast", frames)
 
 	// Let it run for a bit
 	time.Sleep(100 * time.Millisecond)
@@ -248,7 +249,7 @@ func TestSpinnerMemoryLeak(t *testing.T) {
 
 	// Create and destroy many spinners
 	for i := 0; i < 1000; i++ {
-		spinner := logger.Spinner(fmt.Sprintf("Spinner %d", i))
+		spinner := logger.Spinner(context.Background(), fmt.Sprintf("Spinner %d", i))
 		// Don't sleep, just create and stop immediately
 		spinner.Stop()
 		buf.Reset() // Clear buffer to avoid growing
@@ -267,7 +268,7 @@ func TestSpinnerPaddingInheritance(t *testing.T) {
 	logger.IncreasePadding()
 	logger.IncreasePadding()
 
-	spinner := logger.Spinner("Indented spinner")
+	spinner := logger.Spinner(context.Background(), "Indented spinner")
 	time.Sleep(50 * time.Millisecond)
 	spinner.Success("Done")
 
@@ -289,7 +290,7 @@ func TestSpinnerWithClosedWriter(t *testing.T) {
 	pr.Close()
 
 	// Create spinner with closed writer - should handle gracefully
-	spinner := logger.Spinner("Test")
+	spinner := logger.Spinner(context.Background(), "Test")
 	if spinner != nil {
 		// These operations should not panic even with closed writer
 		time.Sleep(10 * time.Millisecond)
@@ -302,7 +303,7 @@ func TestSpinnerRaceCondition(t *testing.T) {
 	var buf bytes.Buffer
 	logger := bullets.New(&buf)
 
-	spinner := logger.Spinner("Race test")
+	spinner := logger.Spinner(context.Background(), "Race test")
 
 	// Start multiple goroutines that modify spinner state
 	go func() {
@@ -331,7 +332,7 @@ func TestSpinnerSuccessWithEmptyMessage(t *testing.T) {
 	var buf bytes.Buffer
 	logger := bullets.New(&buf)
 
-	spinner := logger.Spinner("Loading...")
+	spinner := logger.Spinner(context.Background(), "Loading...")
 	time.Sleep(30 * time.Millisecond)
 	spinner.Success("")
 
@@ -343,7 +344,7 @@ func TestSpinnerErrorWithEmptyMessage(t *testing.T) {
 	var buf bytes.Buffer
 	logger := bullets.New(&buf)
 
-	spinner := logger.Spinner("Processing...")
+	spinner := logger.Spinner(context.Background(), "Processing...")
 	time.Sleep(30 * time.Millisecond)
 	spinner.Error("")
 
@@ -355,7 +356,7 @@ func TestSpinnerWithZeroDuration(t *testing.T) {
 	var buf bytes.Buffer
 	logger := bullets.New(&buf)
 
-	spinner := logger.Spinner("Instant")
+	spinner := logger.Spinner(context.Background(), "Instant")
 	// Stop immediately, no sleep
 	spinner.Stop()
 
@@ -368,7 +369,7 @@ func TestSpinnerAllStylesEdgeCases(t *testing.T) {
 	logger := bullets.New(&buf)
 
 	// Test each style with immediate stop
-	styles := []func(string) *bullets.Spinner{
+	styles := []func(context.Context, string) *bullets.Spinner{
 		logger.Spinner,
 		logger.SpinnerDots,
 		logger.SpinnerCircle,
@@ -376,7 +377,7 @@ func TestSpinnerAllStylesEdgeCases(t *testing.T) {
 	}
 
 	for _, styleFunc := range styles {
-		spinner := styleFunc("Quick test")
+		spinner := styleFunc(context.Background(), "Quick test")
 		spinner.Stop()
 	}
 

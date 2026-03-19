@@ -2,6 +2,7 @@ package bullets
 
 import (
 	"bytes"
+	"context"
 	"runtime"
 	"sync"
 	"testing"
@@ -13,7 +14,7 @@ func TestSpinnerStopIdempotent(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 
 	// Call Stop() multiple times concurrently
@@ -48,7 +49,7 @@ func TestConcurrentSpinnerOperations(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			spinners[idx] = logger.SpinnerCircle("concurrent test")
+			spinners[idx] = logger.SpinnerCircle(context.Background(), "concurrent test")
 		}(i)
 	}
 	wg.Wait()
@@ -95,7 +96,7 @@ func TestNoGoroutineLeaks(t *testing.T) {
 
 	// Create and destroy many spinners
 	for i := 0; i < 100; i++ {
-		spinner := logger.SpinnerCircle("leak test")
+		spinner := logger.SpinnerCircle(context.Background(), "leak test")
 		time.Sleep(10 * time.Millisecond)
 		spinner.Stop()
 	}
@@ -119,7 +120,7 @@ func TestRapidCreateDestroyCycles(t *testing.T) {
 	logger := New(&buf)
 
 	for i := 0; i < 1000; i++ {
-		spinner := logger.SpinnerCircle("rapid test")
+		spinner := logger.SpinnerCircle(context.Background(), "rapid test")
 		spinner.Stop()
 	}
 
@@ -131,7 +132,7 @@ func TestConcurrentSuccessError(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 
 	// Try to call Success and Error concurrently
@@ -162,7 +163,7 @@ func TestSpinnerStopWaitsForAnimation(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerCircle("wait test")
+	spinner := logger.SpinnerCircle(context.Background(), "wait test")
 	time.Sleep(100 * time.Millisecond)
 
 	// This should block until animation goroutine exits
@@ -187,7 +188,7 @@ func TestMultipleSpinnersCleanup(t *testing.T) {
 
 	spinners := make([]*Spinner, 10)
 	for i := 0; i < 10; i++ {
-		spinners[i] = logger.SpinnerCircle("cleanup test")
+		spinners[i] = logger.SpinnerCircle(context.Background(), "cleanup test")
 	}
 
 	time.Sleep(200 * time.Millisecond)
@@ -211,8 +212,8 @@ func TestCoordinatorUnregister(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner1 := logger.SpinnerCircle("test 1")
-	spinner2 := logger.SpinnerCircle("test 2")
+	spinner1 := logger.SpinnerCircle(context.Background(), "test 1")
+	spinner2 := logger.SpinnerCircle(context.Background(), "test 2")
 
 	// Coordinator should have 2 spinners
 	logger.coordinator.mu.Lock()
@@ -251,7 +252,7 @@ func TestStopAfterCompletion(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	spinner := logger.SpinnerCircle("test")
+	spinner := logger.SpinnerCircle(context.Background(), "test")
 	time.Sleep(100 * time.Millisecond)
 
 	spinner.Success("done")
@@ -274,7 +275,7 @@ func TestConcurrentSpinnersRaceDetector(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			spinner := logger.SpinnerCircle("race test")
+			spinner := logger.SpinnerCircle(context.Background(), "race test")
 			time.Sleep(50 * time.Millisecond)
 
 			switch idx % 3 {

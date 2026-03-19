@@ -2,6 +2,7 @@ package bullets
 
 import (
 	"bytes"
+	"context"
 	"sync"
 	"testing"
 )
@@ -202,7 +203,7 @@ func TestSpinnerSanitize(t *testing.T) {
 	logger.SetSanitizeInput(true)
 
 	// Non-TTY mode: spinner prints static message
-	s := logger.Spinner("\x1b[2Jclear screen attack")
+	s := logger.Spinner(context.Background(), "\x1b[2Jclear screen attack")
 	s.Success("\x1b[10Aoverwrite attack")
 	output := buf.String()
 
@@ -219,7 +220,7 @@ func TestSpinnerErrorSanitize(t *testing.T) {
 	logger := New(&buf)
 	logger.SetSanitizeInput(true)
 
-	s := logger.Spinner("task")
+	s := logger.Spinner(context.Background(), "task")
 	s.Error("\x1b[2Kfake error\x1b[0m")
 	output := buf.String()
 
@@ -233,7 +234,7 @@ func TestSpinnerReplaceSanitize(t *testing.T) {
 	logger := New(&buf)
 	logger.SetSanitizeInput(true)
 
-	s := logger.Spinner("task")
+	s := logger.Spinner(context.Background(), "task")
 	s.Replace("\x1b[0G\x1b[2Kreplaced\x1b[0m")
 	output := buf.String()
 

@@ -2,6 +2,7 @@ package bullets_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -460,19 +461,19 @@ func TestPulseWithEdgeCases(t *testing.T) {
 	handle := logger.InfoHandle("Pulse test")
 
 	// Test with zero duration
-	handle.Pulse(0, "Alternate")
+	handle.Pulse(context.Background(), 0, "Alternate")
 	time.Sleep(10 * time.Millisecond)
 
 	// Test with negative duration (should be treated as zero or ignored)
-	handle.Pulse(-1*time.Second, "Negative")
+	handle.Pulse(context.Background(), -1*time.Second, "Negative")
 	time.Sleep(10 * time.Millisecond)
 
 	// Test with very short duration
-	handle.Pulse(1*time.Nanosecond, "Nanosecond")
+	handle.Pulse(context.Background(), 1*time.Nanosecond, "Nanosecond")
 	time.Sleep(10 * time.Millisecond)
 
 	// Test with empty alternate message
-	handle.Pulse(100*time.Millisecond, "")
+	handle.Pulse(context.Background(), 100*time.Millisecond, "")
 	time.Sleep(150 * time.Millisecond)
 
 	// Should handle all cases gracefully
