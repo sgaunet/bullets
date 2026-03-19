@@ -2,6 +2,7 @@ package bullets
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
@@ -144,9 +145,9 @@ func TestConcurrentSpinnersANSISequences(t *testing.T) {
 	logger.coordinator.isTTY = true // Force TTY
 
 	// Create 3 spinners (will be assigned lines 0, 1, 2)
-	spinner1 := logger.Spinner("Task 1")
-	spinner2 := logger.Spinner("Task 2")
-	spinner3 := logger.Spinner("Task 3")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
+	spinner2 := logger.Spinner(context.Background(), "Task 2")
+	spinner3 := logger.Spinner(context.Background(), "Task 3")
 
 	// Let them animate for a bit
 	time.Sleep(200 * time.Millisecond)
@@ -208,8 +209,8 @@ func TestRenderCompletionNewlineBug(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Create 2 spinners
-	spinner1 := logger.Spinner("Task 1")
-	spinner2 := logger.Spinner("Task 2")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
+	spinner2 := logger.Spinner(context.Background(), "Task 2")
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -268,9 +269,9 @@ func TestLineNumberDriftAfterCompletion(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Create 3 spinners at lines 0, 1, 2
-	spinner1 := logger.Spinner("Task 1")
-	spinner2 := logger.Spinner("Task 2")
-	spinner3 := logger.Spinner("Task 3")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
+	spinner2 := logger.Spinner(context.Background(), "Task 2")
+	spinner3 := logger.Spinner(context.Background(), "Task 3")
 
 	// Let them animate for a couple frames
 	time.Sleep(200 * time.Millisecond)

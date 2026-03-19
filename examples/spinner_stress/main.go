@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"os"
@@ -43,7 +44,7 @@ func main() {
 	// This allows the coordinator to efficiently allocate line numbers
 	spinners := make([]*bullets.Spinner, len(tasks))
 	for i, task := range tasks {
-		spinners[i] = logger.Spinner(task.Name)
+		spinners[i] = logger.Spinner(context.Background(), task.Name)
 	}
 
 	logger.DecreasePadding()

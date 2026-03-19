@@ -3,6 +3,7 @@
 package bullets
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"maps"
@@ -305,20 +306,26 @@ func (l *Logger) Step(msg string) func() {
 
 // Spinner creates and starts a spinner with default Braille dots animation.
 //
+// The context controls the spinner's lifetime. When the context is cancelled or
+// its deadline expires, the spinner automatically stops with an error message
+// from ctx.Err().Error() (e.g., "context canceled" or "context deadline exceeded").
+//
 // Multiple spinners can run concurrently with automatic coordination. The spinner
-// animates until stopped with Stop(), Success(), Error(), or Replace().
+// animates until stopped with Stop(), Success(), Error(), Replace(), or context cancellation.
 //
 // Example:
 //
-//	spinner := logger.Spinner("Processing data")
+//	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+//	defer cancel()
+//	spinner := logger.Spinner(ctx, "Processing data")
 //	// ... do work ...
-//	spinner.Success("Processing complete")
+//	spinner.Success("Processing complete") // or context cancels automatically
 //
 // In TTY mode, the spinner animates in-place. In non-TTY mode (logs, CI/CD),
 // it displays as a static message.
 //
 // Thread-safe: Multiple spinners can be created from different goroutines.
-func (l *Logger) Spinner(msg string) *Spinner {
+func (l *Logger) Spinner(ctx context.Context, msg string) *Spinner {
 	l.mu.Lock()
 	if l.sanitizeInput {
 		msg = sanitizeMsg(msg)
@@ -328,7 +335,7 @@ func (l *Logger) Spinner(msg string) *Spinner {
 
 	// Default Braille spinner
 	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	return newSpinner(l, msg, frames, color, spinnerIntervalDefault)
+	return newSpinner(ctx, l, msg, frames, color, spinnerIntervalDefault)
 }
 
 // SpinnerDots creates a spinner with rotating Braille dots pattern.
@@ -336,7 +343,7 @@ func (l *Logger) Spinner(msg string) *Spinner {
 // This is the default spinner style with smooth dot transitions. Identical to Spinner().
 //
 // Thread-safe: Multiple spinners can be created from different goroutines.
-func (l *Logger) SpinnerDots(msg string) *Spinner {
+func (l *Logger) SpinnerDots(ctx context.Context, msg string) *Spinner {
 	l.mu.Lock()
 	if l.sanitizeInput {
 		msg = sanitizeMsg(msg)
@@ -345,7 +352,7 @@ func (l *Logger) SpinnerDots(msg string) *Spinner {
 	l.mu.Unlock()
 
 	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	return newSpinner(l, msg, frames, color, spinnerIntervalDefault)
+	return newSpinner(ctx, l, msg, frames, color, spinnerIntervalDefault)
 }
 
 // SpinnerCircle creates a spinner with growing/shrinking circle pattern.
@@ -354,7 +361,7 @@ func (l *Logger) SpinnerDots(msg string) *Spinner {
 // The animation is slower than the default Braille dots for a more relaxed feel.
 //
 // Thread-safe: Multiple spinners can be created from different goroutines.
-func (l *Logger) SpinnerCircle(msg string) *Spinner {
+func (l *Logger) SpinnerCircle(ctx context.Context, msg string) *Spinner {
 	l.mu.Lock()
 	if l.sanitizeInput {
 		msg = sanitizeMsg(msg)
@@ -363,7 +370,7 @@ func (l *Logger) SpinnerCircle(msg string) *Spinner {
 	l.mu.Unlock()
 
 	frames := []string{"◐", "◓", "◑", "◒"}
-	return newSpinner(l, msg, frames, color, spinnerIntervalSlow)
+	return newSpinner(ctx, l, msg, frames, color, spinnerIntervalSlow)
 }
 
 // SpinnerBounce creates a spinner with bouncing dot pattern.
@@ -372,7 +379,7 @@ func (l *Logger) SpinnerCircle(msg string) *Spinner {
 // to bounce vertically. The animation uses the default speed.
 //
 // Thread-safe: Multiple spinners can be created from different goroutines.
-func (l *Logger) SpinnerBounce(msg string) *Spinner {
+func (l *Logger) SpinnerBounce(ctx context.Context, msg string) *Spinner {
 	l.mu.Lock()
 	if l.sanitizeInput {
 		msg = sanitizeMsg(msg)
@@ -381,7 +388,7 @@ func (l *Logger) SpinnerBounce(msg string) *Spinner {
 	l.mu.Unlock()
 
 	frames := []string{"⠁", "⠂", "⠄", "⡀", "⢀", "⠠", "⠐", "⠈"}
-	return newSpinner(l, msg, frames, color, spinnerIntervalDefault)
+	return newSpinner(ctx, l, msg, frames, color, spinnerIntervalDefault)
 }
 
 // SpinnerWithFrames creates and starts a spinner with custom animation frames.
@@ -392,12 +399,12 @@ func (l *Logger) SpinnerBounce(msg string) *Spinner {
 // Example:
 //
 //	frames := []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
-//	spinner := logger.SpinnerWithFrames("Compiling", frames)
+//	spinner := logger.SpinnerWithFrames(context.Background(), "Compiling", frames)
 //	// ... do work ...
 //	spinner.Success("Compilation complete")
 //
 // Thread-safe: Multiple spinners can be created from different goroutines.
-func (l *Logger) SpinnerWithFrames(msg string, frames []string) *Spinner {
+func (l *Logger) SpinnerWithFrames(ctx context.Context, msg string, frames []string) *Spinner {
 	l.mu.Lock()
 	if l.sanitizeInput {
 		msg = sanitizeMsg(msg)
@@ -405,7 +412,7 @@ func (l *Logger) SpinnerWithFrames(msg string, frames []string) *Spinner {
 	color := cyan // Default info level color
 	l.mu.Unlock()
 
-	return newSpinner(l, msg, frames, color, spinnerIntervalSlow)
+	return newSpinner(ctx, l, msg, frames, color, spinnerIntervalSlow)
 }
 
 // log is the internal logging method.

@@ -1,6 +1,7 @@
 package bullets
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"testing"
@@ -24,9 +25,9 @@ func TestMixedCompletionStatuses(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Create three spinners with different completion types
-	spinner1 := logger.Spinner("Task 1")
-	spinner2 := logger.Spinner("Task 2")
-	spinner3 := logger.Spinner("Task 3")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
+	spinner2 := logger.Spinner(context.Background(), "Task 2")
+	spinner3 := logger.Spinner(context.Background(), "Task 3")
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -73,7 +74,7 @@ func TestAlternatingSuccessError(t *testing.T) {
 
 	// Create spinners and alternate success/error
 	for i := 0; i < 10; i++ {
-		spinner := logger.Spinner("Task")
+		spinner := logger.Spinner(context.Background(), "Task")
 		time.Sleep(50 * time.Millisecond)
 
 		if i%2 == 0 {
@@ -108,10 +109,10 @@ func TestAllSpinnersFailSimultaneously(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Create multiple spinners
-	spinner1 := logger.Spinner("Task 1")
-	spinner2 := logger.Spinner("Task 2")
-	spinner3 := logger.Spinner("Task 3")
-	spinner4 := logger.Spinner("Task 4")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
+	spinner2 := logger.Spinner(context.Background(), "Task 2")
+	spinner3 := logger.Spinner(context.Background(), "Task 3")
+	spinner4 := logger.Spinner(context.Background(), "Task 4")
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -156,8 +157,8 @@ func TestReplaceCompletionType(t *testing.T) {
 	}
 	logger.coordinator.isTTY = true
 
-	spinner1 := logger.Spinner("Task 1")
-	spinner2 := logger.Spinner("Task 2")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
+	spinner2 := logger.Spinner(context.Background(), "Task 2")
 
 	time.Sleep(150 * time.Millisecond)
 
@@ -190,11 +191,11 @@ func TestVaryingMessageLengths(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Short message
-	spinner1 := logger.Spinner("S1")
+	spinner1 := logger.Spinner(context.Background(), "S1")
 	// Medium message
-	spinner2 := logger.Spinner("S2")
+	spinner2 := logger.Spinner(context.Background(), "S2")
 	// Long message
-	spinner3 := logger.Spinner("S3")
+	spinner3 := logger.Spinner(context.Background(), "S3")
 
 	time.Sleep(150 * time.Millisecond)
 
@@ -235,7 +236,7 @@ func TestMixedCompletionsConcurrent(t *testing.T) {
 	// Create multiple spinners
 	spinners := make([]*Spinner, 12)
 	for i := 0; i < 12; i++ {
-		spinners[i] = logger.Spinner("Task")
+		spinners[i] = logger.Spinner(context.Background(), "Task")
 	}
 
 	time.Sleep(200 * time.Millisecond)
@@ -289,13 +290,13 @@ func TestErrorAfterSuccess(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Sequential pattern: success then error
-	spinner1 := logger.Spinner("First task")
+	spinner1 := logger.Spinner(context.Background(), "First task")
 	time.Sleep(100 * time.Millisecond)
 	spinner1.Success("First succeeded")
 
 	time.Sleep(50 * time.Millisecond)
 
-	spinner2 := logger.Spinner("Second task")
+	spinner2 := logger.Spinner(context.Background(), "Second task")
 	time.Sleep(100 * time.Millisecond)
 	spinner2.Error("Second failed")
 
@@ -323,8 +324,8 @@ func TestStopWithoutMessage(t *testing.T) {
 	}
 	logger.coordinator.isTTY = true
 
-	spinner1 := logger.Spinner("Task 1")
-	spinner2 := logger.Spinner("Task 2")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
+	spinner2 := logger.Spinner(context.Background(), "Task 2")
 
 	time.Sleep(150 * time.Millisecond)
 
@@ -357,10 +358,10 @@ func TestComplexMixedPattern(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Simulate a complex deployment scenario
-	download := logger.Spinner("Downloading dependencies")
-	compile := logger.Spinner("Compiling code")
-	test := logger.Spinner("Running tests")
-	deploy := logger.Spinner("Deploying to server")
+	download := logger.Spinner(context.Background(), "Downloading dependencies")
+	compile := logger.Spinner(context.Background(), "Compiling code")
+	test := logger.Spinner(context.Background(), "Running tests")
+	deploy := logger.Spinner(context.Background(), "Deploying to server")
 
 	time.Sleep(100 * time.Millisecond)
 	download.Success("Dependencies downloaded")
@@ -404,9 +405,9 @@ func TestMixedWithColoredOutput(t *testing.T) {
 	}
 	logger.coordinator.isTTY = true
 
-	spinner1 := logger.Spinner("Colorful task 1")
-	spinner2 := logger.Spinner("Colorful task 2")
-	spinner3 := logger.Spinner("Colorful task 3")
+	spinner1 := logger.Spinner(context.Background(), "Colorful task 1")
+	spinner2 := logger.Spinner(context.Background(), "Colorful task 2")
+	spinner3 := logger.Spinner(context.Background(), "Colorful task 3")
 
 	time.Sleep(150 * time.Millisecond)
 

@@ -1,6 +1,7 @@
 package bullets
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"runtime"
@@ -33,7 +34,7 @@ func TestRapidSpinnerCreation(t *testing.T) {
 
 	// Create spinners rapidly (10ms intervals)
 	for i := 0; i < numSpinners; i++ {
-		spinners[i] = logger.Spinner(fmt.Sprintf("Task %d", i))
+		spinners[i] = logger.Spinner(context.Background(), fmt.Sprintf("Task %d", i))
 		time.Sleep(10 * time.Millisecond)
 	}
 
@@ -82,7 +83,7 @@ func TestRapidCompletionRandomTiming(t *testing.T) {
 
 	// Create spinners and complete them at random times
 	for i := 0; i < numSpinners; i++ {
-		spinner := logger.Spinner(fmt.Sprintf("Random task %d", i))
+		spinner := logger.Spinner(context.Background(), fmt.Sprintf("Random task %d", i))
 
 		wg.Add(1)
 		go func(s *Spinner, id int) {
@@ -130,7 +131,7 @@ func TestImmediateCompletionStress(t *testing.T) {
 
 	// Create and immediately complete many spinners
 	for i := 0; i < 50; i++ {
-		spinner := logger.Spinner(fmt.Sprintf("Immediate %d", i))
+		spinner := logger.Spinner(context.Background(), fmt.Sprintf("Immediate %d", i))
 		spinner.Success("Done immediately")
 	}
 
@@ -165,7 +166,7 @@ func TestRapidSequentialCycles(t *testing.T) {
 
 	// 10 cycles of create -> wait -> complete
 	for cycle := 0; cycle < 10; cycle++ {
-		spinner := logger.Spinner(fmt.Sprintf("Cycle %d", cycle))
+		spinner := logger.Spinner(context.Background(), fmt.Sprintf("Cycle %d", cycle))
 		time.Sleep(100 * time.Millisecond) // 1-2 frames
 		spinner.Success(fmt.Sprintf("Cycle %d done", cycle))
 		time.Sleep(20 * time.Millisecond)
@@ -201,7 +202,7 @@ func TestConcurrentBurstPattern(t *testing.T) {
 
 		// Each burst creates 5 concurrent spinners
 		for i := 0; i < 5; i++ {
-			spinner := logger.Spinner(fmt.Sprintf("Burst %d Task %d", burst, i))
+			spinner := logger.Spinner(context.Background(), fmt.Sprintf("Burst %d Task %d", burst, i))
 
 			wg.Add(1)
 			go func(s *Spinner) {
@@ -252,7 +253,7 @@ func TestHighConcurrencyManySpinners(t *testing.T) {
 
 	// Create all spinners
 	for i := 0; i < numSpinners; i++ {
-		spinners[i] = logger.Spinner(fmt.Sprintf("Concurrent %d", i))
+		spinners[i] = logger.Spinner(context.Background(), fmt.Sprintf("Concurrent %d", i))
 	}
 
 	// Complete them all at random times
@@ -305,7 +306,7 @@ func TestMemoryUsageStress(t *testing.T) {
 
 	// Create and complete many spinners
 	for i := 0; i < 200; i++ {
-		spinner := logger.Spinner(fmt.Sprintf("Memory test %d", i))
+		spinner := logger.Spinner(context.Background(), fmt.Sprintf("Memory test %d", i))
 		time.Sleep(5 * time.Millisecond)
 		spinner.Success("Done")
 	}
@@ -346,9 +347,9 @@ func TestLinePositionDriftUnderLoad(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Create spinners and track their positions
-	spinner1 := logger.Spinner("Persistent 1")
-	spinner2 := logger.Spinner("Persistent 2")
-	spinner3 := logger.Spinner("Persistent 3")
+	spinner1 := logger.Spinner(context.Background(), "Persistent 1")
+	spinner2 := logger.Spinner(context.Background(), "Persistent 2")
+	spinner3 := logger.Spinner(context.Background(), "Persistent 3")
 
 	// Record initial positions
 	initialPos1 := logger.coordinator.getSpinnerLineNumber(spinner1)
@@ -357,7 +358,7 @@ func TestLinePositionDriftUnderLoad(t *testing.T) {
 
 	// Create and destroy many temporary spinners
 	for i := 0; i < 30; i++ {
-		temp := logger.Spinner(fmt.Sprintf("Temp %d", i))
+		temp := logger.Spinner(context.Background(), fmt.Sprintf("Temp %d", i))
 		time.Sleep(10 * time.Millisecond)
 		temp.Success("Temp done")
 	}
@@ -400,7 +401,7 @@ func TestOutputCoherenceUnderStress(t *testing.T) {
 
 	// Rapid fire mixed operations
 	for i := 0; i < 50; i++ {
-		spinner := logger.Spinner(fmt.Sprintf("Task %d", i))
+		spinner := logger.Spinner(context.Background(), fmt.Sprintf("Task %d", i))
 
 		if i%3 == 0 {
 			// Immediate completion

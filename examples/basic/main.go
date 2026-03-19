@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"time"
@@ -91,29 +92,29 @@ func main() {
 	logger.IncreasePadding()
 
 	// Default Braille spinner with success
-	spinner := logger.Spinner("downloading files")
+	spinner := logger.Spinner(context.Background(), "downloading files")
 	time.Sleep(sleep3)
 	spinner.Success("downloaded 10 files")
 
 	// Circle spinner with error
-	spinner = logger.SpinnerCircle("connecting to database")
-	spinner2 := logger.SpinnerCircle("connecting to database2")
+	spinner = logger.SpinnerCircle(context.Background(), "connecting to database")
+	spinner2 := logger.SpinnerCircle(context.Background(), "connecting to database2")
 	time.Sleep(sleep2)
 	spinner.Error("connection failed")
 	spinner2.Success("connection OK")
 
 	// Bounce spinner with custom completion
-	spinner = logger.SpinnerBounce("processing data")
+	spinner = logger.SpinnerBounce(context.Background(), "processing data")
 	time.Sleep(sleep2)
 	spinner.Replace("processed 1000 records")
 
 	// Dots spinner (same as default)
-	spinner = logger.SpinnerDots("installing packages")
+	spinner = logger.SpinnerDots(context.Background(), "installing packages")
 	time.Sleep(sleep2)
 	spinner.Success("packages installed")
 
 	// Custom frames spinner
-	spinner = logger.SpinnerWithFrames("compiling code", []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"})
+	spinner = logger.SpinnerWithFrames(context.Background(), "compiling code", []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"})
 	time.Sleep(sleep2)
 	spinner.Success("compilation complete")
 

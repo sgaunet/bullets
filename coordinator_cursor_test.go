@@ -2,6 +2,7 @@ package bullets
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -20,10 +21,10 @@ func TestCursorPositionAfterCompletions(t *testing.T) {
 	logger := New(&buf)
 
 	// Create 4 spinners
-	s1 := logger.Spinner("Task 1")
-	s2 := logger.Spinner("Task 2")
-	s3 := logger.Spinner("Task 3")
-	s4 := logger.Spinner("Task 4")
+	s1 := logger.Spinner(context.Background(), "Task 1")
+	s2 := logger.Spinner(context.Background(), "Task 2")
+	s3 := logger.Spinner(context.Background(), "Task 3")
+	s4 := logger.Spinner(context.Background(), "Task 4")
 
 	// Let spinners animate a bit
 	time.Sleep(100 * time.Millisecond)
@@ -102,9 +103,9 @@ func TestCursorPositionOutOfOrder(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(&buf)
 
-	s1 := logger.Spinner("Task 1")
-	s2 := logger.Spinner("Task 2")
-	s3 := logger.Spinner("Task 3")
+	s1 := logger.Spinner(context.Background(), "Task 1")
+	s2 := logger.Spinner(context.Background(), "Task 2")
+	s3 := logger.Spinner(context.Background(), "Task 3")
 
 	time.Sleep(100 * time.Millisecond)
 

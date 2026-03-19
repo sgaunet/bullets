@@ -1,6 +1,7 @@
 package bullets
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -23,9 +24,9 @@ func TestConcurrentSpinnersDifferentDurations(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Create three concurrent spinners
-	spinner1 := logger.Spinner("Short task")   // Will run 100ms
-	spinner2 := logger.Spinner("Medium task")  // Will run 300ms
-	spinner3 := logger.Spinner("Long task")    // Will run 500ms
+	spinner1 := logger.Spinner(context.Background(), "Short task")   // Will run 100ms
+	spinner2 := logger.Spinner(context.Background(), "Medium task")  // Will run 300ms
+	spinner3 := logger.Spinner(context.Background(), "Long task")    // Will run 500ms
 
 	// Complete them at different times
 	go func() {
@@ -74,9 +75,9 @@ func TestConcurrentSpinnersEarlyCompletion(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Create three spinners
-	spinner1 := logger.Spinner("Task 1")
-	spinner2 := logger.Spinner("Task 2")
-	spinner3 := logger.Spinner("Task 3")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
+	spinner2 := logger.Spinner(context.Background(), "Task 2")
+	spinner3 := logger.Spinner(context.Background(), "Task 3")
 
 	// First spinner completes immediately
 	time.Sleep(50 * time.Millisecond)
@@ -118,9 +119,9 @@ func TestConcurrentSpinnersLateCompletion(t *testing.T) {
 	}
 	logger.coordinator.isTTY = true
 
-	spinner1 := logger.Spinner("Task 1")
-	spinner2 := logger.Spinner("Task 2")
-	spinner3 := logger.Spinner("Task 3")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
+	spinner2 := logger.Spinner(context.Background(), "Task 2")
+	spinner3 := logger.Spinner(context.Background(), "Task 3")
 
 	// First two complete quickly
 	time.Sleep(100 * time.Millisecond)
@@ -159,9 +160,9 @@ func TestConcurrentSpinnersMiddleCompletion(t *testing.T) {
 	}
 	logger.coordinator.isTTY = true
 
-	spinner1 := logger.Spinner("Task 1") // Line 0
-	spinner2 := logger.Spinner("Task 2") // Line 1
-	spinner3 := logger.Spinner("Task 3") // Line 2
+	spinner1 := logger.Spinner(context.Background(), "Task 1") // Line 0
+	spinner2 := logger.Spinner(context.Background(), "Task 2") // Line 1
+	spinner3 := logger.Spinner(context.Background(), "Task 3") // Line 2
 
 	// Let them all animate for a bit
 	time.Sleep(200 * time.Millisecond)
@@ -207,13 +208,13 @@ func TestConcurrentSpinnersStaggeredStart(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Stagger the start times
-	spinner1 := logger.Spinner("Task 1")
+	spinner1 := logger.Spinner(context.Background(), "Task 1")
 	time.Sleep(100 * time.Millisecond)
 
-	spinner2 := logger.Spinner("Task 2")
+	spinner2 := logger.Spinner(context.Background(), "Task 2")
 	time.Sleep(100 * time.Millisecond)
 
-	spinner3 := logger.Spinner("Task 3")
+	spinner3 := logger.Spinner(context.Background(), "Task 3")
 	time.Sleep(200 * time.Millisecond)
 
 	// Complete them in order
@@ -245,8 +246,8 @@ func TestConcurrentSpinnersOverlappingLifetimes(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Complex pattern: start multiple, complete some, start more
-	spinner1 := logger.Spinner("Phase 1 - Task A")
-	spinner2 := logger.Spinner("Phase 1 - Task B")
+	spinner1 := logger.Spinner(context.Background(), "Phase 1 - Task A")
+	spinner2 := logger.Spinner(context.Background(), "Phase 1 - Task B")
 
 	time.Sleep(150 * time.Millisecond)
 
@@ -257,8 +258,8 @@ func TestConcurrentSpinnersOverlappingLifetimes(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Start second phase immediately
-	spinner3 := logger.Spinner("Phase 2 - Task C")
-	spinner4 := logger.Spinner("Phase 2 - Task D")
+	spinner3 := logger.Spinner(context.Background(), "Phase 2 - Task C")
+	spinner4 := logger.Spinner(context.Background(), "Phase 2 - Task D")
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -295,10 +296,10 @@ func TestConcurrentSpinnersLinePositionStability(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Create 4 spinners
-	spinner1 := logger.Spinner("S1")
-	spinner2 := logger.Spinner("S2")
-	spinner3 := logger.Spinner("S3")
-	spinner4 := logger.Spinner("S4")
+	spinner1 := logger.Spinner(context.Background(), "S1")
+	spinner2 := logger.Spinner(context.Background(), "S2")
+	spinner3 := logger.Spinner(context.Background(), "S3")
+	spinner4 := logger.Spinner(context.Background(), "S4")
 
 	// Record line assignments
 	line1 := logger.coordinator.getSpinnerLineNumber(spinner1)
@@ -365,13 +366,13 @@ func TestConcurrentSpinnersVaryingAnimationFrames(t *testing.T) {
 	logger.coordinator.isTTY = true
 
 	// Quick spinner (~2 frames)
-	spinner1 := logger.Spinner("Quick")
+	spinner1 := logger.Spinner(context.Background(), "Quick")
 
 	// Medium spinner (~4 frames)
-	spinner2 := logger.Spinner("Medium")
+	spinner2 := logger.Spinner(context.Background(), "Medium")
 
 	// Long spinner (~8 frames)
-	spinner3 := logger.Spinner("Long")
+	spinner3 := logger.Spinner(context.Background(), "Long")
 
 	// Complete at different frame counts
 	time.Sleep(160 * time.Millisecond) // ~2 frames

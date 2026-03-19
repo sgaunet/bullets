@@ -2,6 +2,7 @@ package bullets_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -31,7 +32,7 @@ func TestCompleteLoggingWorkflow(t *testing.T) {
 	depsStep()
 
 	// Step 2: Compilation with spinner
-	spinner := logger.Spinner("Compiling source files")
+	spinner := logger.Spinner(context.Background(), "Compiling source files")
 	time.Sleep(20 * time.Millisecond)
 	spinner.Success("Compilation complete")
 
@@ -72,7 +73,7 @@ func TestMixedSpinnerAndLogging(t *testing.T) {
 	logger := bullets.New(writer)
 
 	// Start spinner
-	spinner := logger.Spinner("Background task running")
+	spinner := logger.Spinner(context.Background(), "Background task running")
 
 	// Log while spinner is running
 	go func() {
@@ -190,7 +191,7 @@ func TestConcurrentMixedOperations(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 5; i++ {
-			spinner := logger.Spinner(fmt.Sprintf("Spinner %d", i))
+			spinner := logger.Spinner(context.Background(), fmt.Sprintf("Spinner %d", i))
 			time.Sleep(10 * time.Millisecond)
 			spinner.Success("Done")
 		}
@@ -236,7 +237,7 @@ func TestErrorRecovery(t *testing.T) {
 	logger.Info("This will fail to write")
 	logger.Error("This also fails")
 
-	spinner := logger.Spinner("Spinner with failed writes")
+	spinner := logger.Spinner(context.Background(), "Spinner with failed writes")
 	time.Sleep(10 * time.Millisecond)
 	spinner.Stop()
 
@@ -290,7 +291,7 @@ func TestRealWorldCLISimulation(t *testing.T) {
 	}
 
 	for _, check := range checks {
-		spinner := logger.Spinner(check)
+		spinner := logger.Spinner(context.Background(), check)
 		time.Sleep(5 * time.Millisecond)
 		spinner.Success(check + " ✓")
 	}
@@ -375,7 +376,7 @@ func TestMemoryUsageUnderLoad(t *testing.T) {
 			logger.Info("Test message")
 
 			// Create and destroy spinners
-			spinner := logger.Spinner("Loading")
+			spinner := logger.Spinner(context.Background(), "Loading")
 			spinner.Stop()
 
 			// Create updatable logger and handles
@@ -407,7 +408,7 @@ func TestNestedPaddingComplex(t *testing.T) {
 
 		if i == 3 {
 			// Add spinner at level 3
-			spinner := logger.Spinner("Processing at level 3")
+			spinner := logger.Spinner(context.Background(), "Processing at level 3")
 			time.Sleep(10 * time.Millisecond)
 			spinner.Success("Done at level 3")
 		}
@@ -483,7 +484,7 @@ func TestEdgeCaseIntegration(t *testing.T) {
 	}
 
 	for _, lang := range languages {
-		spinner := logger.Spinner(lang)
+		spinner := logger.Spinner(context.Background(), lang)
 		time.Sleep(5 * time.Millisecond)
 		spinner.Success(strings.Replace(lang, "...", " ✓", 1))
 	}

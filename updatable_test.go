@@ -2,6 +2,7 @@ package bullets
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -412,7 +413,7 @@ func TestPulse(t *testing.T) {
 	handle := logger.InfoHandle("Original message")
 
 	// Start pulse (it runs in background)
-	handle.Pulse(500*time.Millisecond, "Alternate message")
+	handle.Pulse(context.Background(), 500*time.Millisecond, "Alternate message")
 
 	// Wait a bit to ensure goroutine starts
 	time.Sleep(100 * time.Millisecond)
