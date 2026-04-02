@@ -125,17 +125,25 @@ func (h *BulletHandle) Pulse(ctx context.Context, duration time.Duration, altern
 	}()
 }
 
+// SetProgressBarWidth overrides the progress bar width for this handle.
+// Width is clamped to the range [5, 100]. Default is inherited from the logger.
+func (h *BulletHandle) SetProgressBarWidth(width int) *BulletHandle {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.progressBarWidth = clampProgressBarWidth(width)
+	return h
+}
+
 // Progress updates the bullet to show progress.
 func (h *BulletHandle) Progress(current, total int) *BulletHandle {
 	const percentMultiplier = 100
 	percentage := (current * percentMultiplier) / total
-	progressBar := renderProgressBar(percentage)
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	// Store progress bar separately, keep message intact
-	h.progressBar = progressBar
+	h.progressBar = renderProgressBar(percentage, h.progressBarWidth)
 
 	if h.lineNum != -1 && h.logger.isTTY {
 		h.redraw()
@@ -143,12 +151,25 @@ func (h *BulletHandle) Progress(current, total int) *BulletHandle {
 	return h
 }
 
+const (
+	defaultProgressBarWidth = 20
+	minProgressBarWidth     = 5
+	maxProgressBarWidth     = 100
+)
+
+func clampProgressBarWidth(width int) int {
+	if width < minProgressBarWidth {
+		return minProgressBarWidth
+	}
+	if width > maxProgressBarWidth {
+		return maxProgressBarWidth
+	}
+	return width
+}
+
 // renderProgressBar creates a simple ASCII progress bar.
-func renderProgressBar(percentage int) string {
-	const (
-		barWidth         = 20
-		percentMultiplier = 100
-	)
+func renderProgressBar(percentage, barWidth int) string {
+	const percentMultiplier = 100
 	filled := (percentage * barWidth) / percentMultiplier
 
 	var bar strings.Builder

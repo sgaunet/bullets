@@ -32,6 +32,7 @@ type Logger struct {
 	useSpecialBullets bool
 	customBullets     map[Level]string
 	sanitizeInput     bool
+	progressBarWidth  int
 	writeMu           *sync.Mutex
 	coordinator       *SpinnerCoordinator
 }
@@ -52,9 +53,10 @@ func New(w io.Writer) *Logger {
 		level:             InfoLevel,
 		padding:           0,
 		fields:            make(map[string]any),
-		useSpecialBullets: false,
-		customBullets:     make(map[Level]string),
-		writeMu:           writeMu,
+		useSpecialBullets:  false,
+		customBullets:      make(map[Level]string),
+		progressBarWidth:   defaultProgressBarWidth,
+		writeMu:            writeMu,
 	}
 
 	// Initialize coordinator with shared write mutex
@@ -98,6 +100,14 @@ func (l *Logger) SetSanitizeInput(sanitize bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.sanitizeInput = sanitize
+}
+
+// SetProgressBarWidth sets the default width for progress bars.
+// Width is clamped to the range [5, 100]. Default is 20.
+func (l *Logger) SetProgressBarWidth(width int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.progressBarWidth = clampProgressBarWidth(width)
 }
 
 // SetBullet sets a custom bullet symbol for a specific log level.
@@ -151,6 +161,7 @@ func (l *Logger) WithField(key string, value any) *Logger {
 		fields:            make(map[string]any),
 		useSpecialBullets: l.useSpecialBullets,
 		sanitizeInput:     l.sanitizeInput,
+		progressBarWidth:  l.progressBarWidth,
 		customBullets:     make(map[Level]string),
 	}
 
@@ -174,6 +185,7 @@ func (l *Logger) WithFields(fields map[string]any) *Logger {
 		fields:            make(map[string]any),
 		useSpecialBullets: l.useSpecialBullets,
 		sanitizeInput:     l.sanitizeInput,
+		progressBarWidth:  l.progressBarWidth,
 		customBullets:     make(map[Level]string),
 	}
 

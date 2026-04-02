@@ -85,7 +85,7 @@ func TestRenderProgressBar(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := renderProgressBar(tt.percentage)
+		result := renderProgressBar(tt.percentage, defaultProgressBarWidth)
 
 		// Check for percentage in result
 		expectedPercentage := fmt.Sprintf("%d%%", tt.percentage)
@@ -97,6 +97,67 @@ func TestRenderProgressBar(t *testing.T) {
 		if !strings.HasPrefix(result, "[") {
 			t.Errorf("Progress bar for %d%% doesn't start with '[': %s", tt.percentage, result)
 		}
+	}
+}
+
+func TestRenderProgressBar_CustomWidth(t *testing.T) {
+	// Width 10 at 50%: 5 filled chars
+	result := renderProgressBar(50, 10)
+	if !strings.Contains(result, "50%") {
+		t.Errorf("Expected 50%% in result: %s", result)
+	}
+	equalsCount := strings.Count(result, "=")
+	if equalsCount != 5 { // filled = (50*10)/100 = 5, positions 0-4 get '='
+		t.Errorf("Expected 5 '=' chars for 50%% at width 10, got %d in: %s", equalsCount, result)
+	}
+
+	// Width 40 at 100%: 40 filled chars
+	result = renderProgressBar(100, 40)
+	if !strings.Contains(result, "100%") {
+		t.Errorf("Expected 100%% in result: %s", result)
+	}
+	equalsCount = strings.Count(result, "=")
+	if equalsCount != 40 {
+		t.Errorf("Expected 40 '=' chars for 100%% at width 40, got %d", equalsCount)
+	}
+}
+
+func TestClampProgressBarWidth(t *testing.T) {
+	tests := []struct {
+		input    int
+		expected int
+	}{
+		{0, minProgressBarWidth},
+		{3, minProgressBarWidth},
+		{5, 5},
+		{20, 20},
+		{100, 100},
+		{150, maxProgressBarWidth},
+		{-10, minProgressBarWidth},
+	}
+	for _, tt := range tests {
+		result := clampProgressBarWidth(tt.input)
+		if result != tt.expected {
+			t.Errorf("clampProgressBarWidth(%d) = %d, want %d", tt.input, result, tt.expected)
+		}
+	}
+}
+
+func TestBulletHandle_SetProgressBarWidth(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := NewUpdatable(buf)
+	handle := logger.InfoHandle("Downloading...")
+
+	handle.SetProgressBarWidth(10)
+	handle.Progress(50, 100)
+
+	if !strings.Contains(handle.progressBar, "50%") {
+		t.Errorf("Expected 50%% in progress bar: %s", handle.progressBar)
+	}
+	// Bar with width 10 should be shorter than default width 20
+	defaultBar := renderProgressBar(50, defaultProgressBarWidth)
+	if len(handle.progressBar) >= len(defaultBar) {
+		t.Errorf("Custom width 10 bar should be shorter than default: got %q vs %q", handle.progressBar, defaultBar)
 	}
 }
 
