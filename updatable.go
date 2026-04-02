@@ -32,9 +32,10 @@ type BulletHandle struct {
 	progressBar    string  // Store progress bar separately
 	color          string
 	bullet         string
-	padding        int
-	fields         map[string]any
-	mu             sync.Mutex
+	padding          int
+	progressBarWidth int
+	fields           map[string]any
+	mu               sync.Mutex
 }
 
 // NewUpdatable creates a new updatable logger.
@@ -161,25 +162,27 @@ func (ul *UpdatableLogger) logHandle(level Level, msg string) *BulletHandle {
 	// If not a TTY, return a handle that prints updates as new lines
 	if !ul.isTTY {
 		return &BulletHandle{
-			logger:          ul,
-			lineNum:         -1,
-			level:           level,
-			message:         msg,
-			originalMessage: msg,
-			padding:         ul.padding,
-			fields:          make(map[string]any),
+			logger:           ul,
+			lineNum:          -1,
+			level:            level,
+			message:          msg,
+			originalMessage:  msg,
+			padding:          ul.padding,
+			progressBarWidth: ul.progressBarWidth,
+			fields:           make(map[string]any),
 		}
 	}
 
 	// Create and register handle
 	handle := &BulletHandle{
-		logger:          ul,
-		lineNum:         ul.lineCount,
-		level:           level,
-		message:         msg,
-		originalMessage: msg,
-		padding:         ul.padding,
-		fields:          make(map[string]any),
+		logger:           ul,
+		lineNum:          ul.lineCount,
+		level:            level,
+		message:          msg,
+		originalMessage:  msg,
+		padding:          ul.padding,
+		progressBarWidth: ul.progressBarWidth,
+		fields:           make(map[string]any),
 	}
 
 	// Copy fields from logger (already have the lock)

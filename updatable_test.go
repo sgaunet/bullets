@@ -239,6 +239,25 @@ func TestBulletHandle_Progress(t *testing.T) {
 	}
 }
 
+func TestBulletHandle_ProgressBarWidthFromLogger(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := NewUpdatable(buf)
+	logger.SetProgressBarWidth(10)
+
+	handle := logger.InfoHandle("Task...")
+	handle.Progress(50, 100)
+
+	if !strings.Contains(handle.progressBar, "50%") {
+		t.Errorf("Expected 50%% in progress bar: %s", handle.progressBar)
+	}
+	// Width 10: bar portion should be "[=====>    ]" (12 chars including brackets)
+	// Total should be shorter than default width 20
+	defaultBar := renderProgressBar(50, defaultProgressBarWidth)
+	if len(handle.progressBar) >= len(defaultBar) {
+		t.Errorf("Logger width 10 bar should be shorter than default: got %q vs %q", handle.progressBar, defaultBar)
+	}
+}
+
 func TestHandleState(t *testing.T) {
 	buf := &bytes.Buffer{}
 	logger := NewUpdatable(buf)
