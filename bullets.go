@@ -163,6 +163,8 @@ func (l *Logger) WithField(key string, value any) *Logger {
 		sanitizeInput:     l.sanitizeInput,
 		progressBarWidth:  l.progressBarWidth,
 		customBullets:     make(map[Level]string),
+		writeMu:           l.writeMu,
+		coordinator:       l.coordinator,
 	}
 
 	maps.Copy(newLogger.fields, l.fields)
@@ -187,6 +189,8 @@ func (l *Logger) WithFields(fields map[string]any) *Logger {
 		sanitizeInput:     l.sanitizeInput,
 		progressBarWidth:  l.progressBarWidth,
 		customBullets:     make(map[Level]string),
+		writeMu:           l.writeMu,
+		coordinator:       l.coordinator,
 	}
 
 	maps.Copy(newLogger.fields, l.fields)
@@ -281,7 +285,9 @@ func (l *Logger) Success(msg string) {
 
 	formatted := fmt.Sprintf("%s %s", colorize(green, bullet), msg)
 
+	l.writeMu.Lock()
 	fmt.Fprintf(l.writer, "%s%s\n", indent, formatted)
+	l.writeMu.Unlock()
 }
 
 // Successf logs a formatted success message.
@@ -295,7 +301,9 @@ func (l *Logger) Ln() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	l.writeMu.Lock()
 	fmt.Fprintln(l.writer)
+	l.writeMu.Unlock()
 }
 
 // Step logs a step message with timing information.
@@ -456,7 +464,9 @@ func (l *Logger) log(level Level, msg string) {
 	}
 
 	// Write to output
+	l.writeMu.Lock()
 	fmt.Fprintf(l.writer, "%s%s\n", indent, formatted)
+	l.writeMu.Unlock()
 }
 
 // registerSpinner adds a spinner to the active spinners list and returns its line number.

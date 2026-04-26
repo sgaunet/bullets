@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -282,5 +283,36 @@ func TestWithFieldPreservesSettings(t *testing.T) {
 
 	if newLogger.padding != logger.padding {
 		t.Error("WithField should preserve padding")
+	}
+}
+
+// TestConcurrentDerivedLoggers exercises the race that BenchmarkWorstCase_ConcurrentStress
+// surfaced: multiple goroutines deriving loggers via WithField and writing to a shared
+// underlying writer must serialize their writes. Without writeMu propagation in WithField
+// (and a writeMu-guarded write in log()), this test trips -race.
+func TestConcurrentDerivedLoggers(t *testing.T) {
+	var buf bytes.Buffer
+	logger := New(&buf)
+
+	const goroutines = 32
+	const perGoroutine = 50
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func(id int) {
+			defer wg.Done()
+			derived := logger.WithField("goroutine", id)
+			for j := 0; j < perGoroutine; j++ {
+				derived.Info("concurrent")
+				derived.Success("ok")
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	lines := strings.Count(buf.String(), "\n")
+	if want := goroutines * perGoroutine * 2; lines != want {
+		t.Errorf("expected %d output lines, got %d", want, lines)
 	}
 }
