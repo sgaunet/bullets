@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/term"
@@ -43,6 +44,7 @@ type Spinner struct {
 	doneCh     chan bool
 	mu         sync.Mutex
 	stopped    bool
+	completed  atomic.Bool    // Gate so only the first completion path (manual vs ctx-cancel) renders.
 	lineNumber int            // Line position (0 = bottom, 1 = second from bottom, etc.)
 	isTTY      bool           // Whether output is a TTY
 	ctxDone    <-chan struct{} // Context Done channel for cancellation support
@@ -286,7 +288,19 @@ func (s *Spinner) stopAnimation() {
 
 // completeSpinner is a helper method that handles spinner completion logic.
 // It stops the animation and renders the completion message with the specified color and bullet.
+//
+// Gated by s.completed: if context cancellation has already begun rendering its
+// own completion, this call becomes a no-op (waits for the spinner to finish so
+// the caller doesn't return before the spinner is gone).
 func (s *Spinner) completeSpinner(msg, color, bullet string) {
+	if !s.completed.CompareAndSwap(false, true) {
+		// A concurrent completion path (typically context cancellation) has
+		// already begun. Wait for animate() to exit so the spinner is fully
+		// torn down before this caller returns.
+		<-s.doneCh
+		return
+	}
+
 	// Stop animation but don't unregister yet
 	s.stopAnimation()
 
@@ -351,7 +365,15 @@ func (s *Spinner) animate() {
 // handleContextCancellation renders the cancellation message when a spinner's context
 // is cancelled. This method is called from animate() and must NOT call stopAnimation()
 // to avoid deadlocking on doneCh.
+//
+// Gated by s.completed: if a manual Success/Error/Replace has already begun
+// rendering its own completion, skip the ctx-cancellation render.
 func (s *Spinner) handleContextCancellation() {
+	if !s.completed.CompareAndSwap(false, true) {
+		// Manual completion already won the gate. Nothing more to render here.
+		return
+	}
+
 	msg := s.ctxErr().Error()
 
 	s.logger.mu.Lock()

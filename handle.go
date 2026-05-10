@@ -95,7 +95,9 @@ func (h *BulletHandle) Pulse(ctx context.Context, duration time.Duration, altern
 		return
 	}
 
+	h.mu.Lock()
 	originalMsg := h.message
+	h.mu.Unlock()
 
 	go func() {
 		const pulseInterval = 500 * time.Millisecond
