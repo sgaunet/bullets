@@ -3,6 +3,7 @@ package bullets
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -32,6 +33,8 @@ var (
 	debugMu sync.RWMutex
 	// debugTestMode disables Once caching for testing (always re-read env var).
 	debugTestMode bool
+	// debugWriteMu serializes writes to stderr so concurrent debug lines don't interleave.
+	debugWriteMu sync.Mutex
 )
 
 // resetDebugLevel resets the debug level initialization state.
@@ -137,7 +140,10 @@ func debugLog(component, format string, args ...any) {
 		elapsed.Milliseconds()%1000) //nolint:mnd // Milliseconds per second
 
 	message := fmt.Sprintf(format, args...)
-	fmt.Fprintf(os.Stderr, "[%s] [%s] %s\n", timestamp, component, message)
+	line := fmt.Sprintf("[%s] [%s] %s\n", timestamp, component, message)
+	debugWriteMu.Lock()
+	_, _ = os.Stderr.WriteString(line)
+	debugWriteMu.Unlock()
 }
 
 // debugLogVerbose writes a verbose debug message, only if verbose debugging is enabled.
@@ -231,10 +237,6 @@ func (c *SpinnerCoordinator) renderDebugMap() {
 		return
 	}
 
-	fmt.Fprintf(os.Stderr, "\n┌─────────────────────────────────────────────────────────────┐\n")
-	fmt.Fprintf(os.Stderr, "│ Spinner Position Map (active: %d)                            \n", state.activeSpinners)
-	fmt.Fprintf(os.Stderr, "├─────────────────────────────────────────────────────────────┤\n")
-
 	// Find the highest line number
 	maxLine := -1
 	for lineNum := range state.lineAllocations {
@@ -243,18 +245,25 @@ func (c *SpinnerCoordinator) renderDebugMap() {
 		}
 	}
 
-	// Show all lines from 0 to max
+	var buf strings.Builder
+	fmt.Fprintf(&buf, "\n┌─────────────────────────────────────────────────────────────┐\n")
+	fmt.Fprintf(&buf, "│ Spinner Position Map (active: %d)                            \n", state.activeSpinners)
+	fmt.Fprintf(&buf, "├─────────────────────────────────────────────────────────────┤\n")
+
 	for i := 0; i <= maxLine; i++ {
 		if desc, ok := state.lineAllocations[i]; ok {
-			fmt.Fprintf(os.Stderr, "│ Line %d: %-52s│\n", i, desc)
+			fmt.Fprintf(&buf, "│ Line %d: %-52s│\n", i, desc)
 		} else {
-			fmt.Fprintf(os.Stderr, "│ Line %d: <empty>                                             │\n", i)
+			fmt.Fprintf(&buf, "│ Line %d: <empty>                                             │\n", i)
 		}
 	}
 
-	// Show cursor position (always at bottom in our model)
-	fmt.Fprintf(os.Stderr, "│ Cursor: Line %d                                              │\n", maxLine+1)
-	fmt.Fprintf(os.Stderr, "└─────────────────────────────────────────────────────────────┘\n\n")
+	fmt.Fprintf(&buf, "│ Cursor: Line %d                                              │\n", maxLine+1)
+	fmt.Fprintf(&buf, "└─────────────────────────────────────────────────────────────┘\n\n")
+
+	debugWriteMu.Lock()
+	_, _ = os.Stderr.WriteString(buf.String())
+	debugWriteMu.Unlock()
 }
 
 // validateDebugMode runs validation checks when debug mode is enabled.

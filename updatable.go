@@ -12,11 +12,15 @@ import (
 )
 
 // UpdatableLogger wraps a regular Logger and provides updatable bullet functionality.
+//
+// Terminal writes are serialized via the embedded Logger.writeMu (*sync.Mutex),
+// which is also shared with the SpinnerCoordinator's cursor service. Routing
+// every write through that single mutex prevents handle redraws from
+// interleaving with regular log lines or spinner frames.
 type UpdatableLogger struct {
 	*Logger
 
 	mu        sync.RWMutex
-	writeMu   sync.Mutex  // Mutex for terminal write operations
 	handles   []*BulletHandle
 	lineCount int  // Track total lines written
 	isTTY     bool // Whether output is a terminal
@@ -79,34 +83,34 @@ func (ul *UpdatableLogger) ErrorHandle(msg string) *BulletHandle {
 
 // Info logs an info message and increments line count.
 func (ul *UpdatableLogger) Info(msg string) {
-	ul.log(InfoLevel, msg)
 	ul.mu.Lock()
+	defer ul.mu.Unlock()
+	ul.log(InfoLevel, msg)
 	ul.lineCount++
-	ul.mu.Unlock()
 }
 
 // Debug logs a debug message and increments line count.
 func (ul *UpdatableLogger) Debug(msg string) {
-	ul.log(DebugLevel, msg)
 	ul.mu.Lock()
+	defer ul.mu.Unlock()
+	ul.log(DebugLevel, msg)
 	ul.lineCount++
-	ul.mu.Unlock()
 }
 
 // Warn logs a warning message and increments line count.
 func (ul *UpdatableLogger) Warn(msg string) {
-	ul.log(WarnLevel, msg)
 	ul.mu.Lock()
+	defer ul.mu.Unlock()
+	ul.log(WarnLevel, msg)
 	ul.lineCount++
-	ul.mu.Unlock()
 }
 
 // Error logs an error message and increments line count.
 func (ul *UpdatableLogger) Error(msg string) {
-	ul.log(ErrorLevel, msg)
 	ul.mu.Lock()
+	defer ul.mu.Unlock()
+	ul.log(ErrorLevel, msg)
 	ul.lineCount++
-	ul.mu.Unlock()
 }
 
 // Success logs a success message and increments line count.
@@ -119,7 +123,8 @@ func (ul *UpdatableLogger) Success(msg string) {
 	}
 
 	if InfoLevel < ul.level {
-		ul.lineCount++
+		// Don't bump lineCount when the line is suppressed — terminal cursor
+		// hasn't moved and any tracked handle would point to the wrong row.
 		return
 	}
 
@@ -136,7 +141,10 @@ func (ul *UpdatableLogger) Success(msg string) {
 	}
 
 	formatted := fmt.Sprintf("%s %s", colorize(green, bullet), msg)
+
+	ul.writeMu.Lock()
 	fmt.Fprintf(ul.writer, "%s%s\n", indent, formatted)
+	ul.writeMu.Unlock()
 	ul.lineCount++
 }
 
@@ -317,14 +325,18 @@ func (h *BulletHandle) redrawSuccess() {
 }
 
 // redrawWithRenderer performs the redraw operation with a custom renderer.
+//
+// Holds ul.mu.RLock for the whole sequence (read lineCount → take writeMu →
+// move/clear/write/move-back → release writeMu). RLock blocks writers from
+// incrementing lineCount mid-redraw, so the cursor offset stays consistent
+// with the terminal state.
 func (h *BulletHandle) redrawWithRenderer(renderer func()) {
 	h.logger.mu.RLock()
-	currentLine := h.logger.lineCount
-	h.logger.mu.RUnlock()
+	defer h.logger.mu.RUnlock()
 
+	currentLine := h.logger.lineCount
 	linesToMoveUp := currentLine - h.lineNum
 
-	// Lock for terminal write operations
 	h.logger.writeMu.Lock()
 	defer h.logger.writeMu.Unlock()
 
@@ -355,11 +367,13 @@ func (h *BulletHandle) redrawWithRenderer(renderer func()) {
 func (h *BulletHandle) renderInPlace() {
 	indent := strings.Repeat("  ", h.padding)
 
-	// Get bullet style
-	h.logger.mu.Lock()
+	// Bullet style fields live on the embedded Logger; use Logger.mu, not the
+	// shadowing UpdatableLogger.mu (which is held RLocked by redrawWithRenderer
+	// above us — taking it here as a write lock would deadlock).
+	h.logger.Logger.mu.Lock()
 	useSpecial := h.logger.useSpecialBullets
 	customBullets := h.logger.customBullets
-	h.logger.mu.Unlock()
+	h.logger.Logger.mu.Unlock()
 
 	formatted := formatMessage(h.level, h.message, useSpecial, customBullets)
 
@@ -384,10 +398,10 @@ func (h *BulletHandle) renderInPlace() {
 func (h *BulletHandle) renderSuccessInPlace() {
 	indent := strings.Repeat("  ", h.padding)
 
-	h.logger.mu.Lock()
+	h.logger.Logger.mu.Lock()
 	useSpecial := h.logger.useSpecialBullets
 	customBullets := h.logger.customBullets
-	h.logger.mu.Unlock()
+	h.logger.Logger.mu.Unlock()
 
 	// Determine bullet symbol for success
 	var bullet string
