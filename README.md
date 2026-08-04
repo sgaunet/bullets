@@ -1,6 +1,5 @@
 # Bullets
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/sgaunet/bullets)](https://goreportcard.com/report/github.com/sgaunet/bullets)
 [![GitHub release](https://img.shields.io/github/release/sgaunet/bullets.svg)](https://github.com/sgaunet/bullets/releases/latest)
 [![linter](https://github.com/sgaunet/bullets/actions/workflows/linter.yml/badge.svg)](https://github.com/sgaunet/bullets/actions/workflows/linter.yml)
 [![coverage](https://github.com/sgaunet/bullets/actions/workflows/coverage.yml/badge.svg)](https://github.com/sgaunet/bullets/actions/workflows/coverage.yml)
